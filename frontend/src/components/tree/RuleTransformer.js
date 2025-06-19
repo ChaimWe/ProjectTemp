@@ -8,38 +8,55 @@ export default class RuleTransformer {
   }
 
   transformRules() {
+    console.log('[RuleTransformer] Starting rule transformation');
 
-    const sortedRules = [...this.rulesArray].sort((a, b) => a.Priority - b.Priority);
-    const newRules = [];
+    if (!this.rulesArray || !this.rulesArray.length || !Array.isArray(this.rulesArray)) {
+      console.error('[RuleTransformer] Invalid input data');
+      return null;
+    }
 
-    sortedRules.forEach((rule, index) => {
-      this.warnings = [];
-      this.validateRule(rule);
-      const labelState = this.labelStatement(rule.Statement, newRules, index);
-      const labelScopeDown = rule.Statement?.RateBasedStatement?.ScopeDownStatement ?
-        this.labelStatement(rule.Statement.RateBasedStatement.ScopeDownStatement, newRules, index) : [];
+    try {
+      const sortedRules = [...this.rulesArray].sort((a, b) => a.Priority - b.Priority);
+      const newRules = [];
 
-      const transformedRule = {
-        json: JSON.stringify(rule, null, 2),
-        id: index,
-        name: rule.Name,
-        priority: rule.Priority,
-        action: rule.Action ? Object.keys(rule.Action)[0] : Object.keys(rule.OverrideAction)[0],
-        ruleLabels: rule.RuleLabels?.map(label => label.Name) || [],
-        insertHeaders: rule.Action?.Count?.CustomRequestHandling?.InsertHeaders?.map(h => { return { name: h.Name, value: h.Value } }) || [],
-        labelState: [...labelState, ...labelScopeDown],
-        level: this.level,
-        warnings: [...this.warnings]
+      sortedRules.forEach((rule, index) => {
+        this.warnings = [];
+        this.validateRule(rule);
+        const labelState = this.labelStatement(rule.Statement, newRules, index);
+        const labelScopeDown = rule.Statement?.RateBasedStatement?.ScopeDownStatement ?
+          this.labelStatement(rule.Statement.RateBasedStatement.ScopeDownStatement, newRules, index) : [];
+
+        const transformedRule = {
+          json: JSON.stringify(rule, null, 2),
+          id: index,
+          name: rule.Name,
+          priority: rule.Priority,
+          action: rule.Action ? Object.keys(rule.Action)[0] : Object.keys(rule.OverrideAction)[0],
+          ruleLabels: rule.RuleLabels?.map(label => label.Name) || [],
+          insertHeaders: rule.Action?.Count?.CustomRequestHandling?.InsertHeaders?.map(h => { return { name: h.Name, value: h.Value } }) || [],
+          labelState: [...labelState, ...labelScopeDown],
+          level: this.level,
+          warnings: [...this.warnings]
+        };
+
+        newRules.push(transformedRule);
+      });
+
+      console.log('[RuleTransformer] Transformation complete:', newRules.length, 'nodes processed');
+      return {
+        nodes: newRules.map((rule, idx) => ({
+          id: rule.id.toString(),
+          type: 'custom-node',
+          data: rule,
+          // position will be assigned later if missing
+        })),
+        edges: this.links,
+        globalWarnings: this.collectWarnings(newRules)
       };
-
-      newRules.push(transformedRule);
-    });
-
-    return {
-      nodes: newRules,
-      edges: this.links,
-      globalWarnings: this.collectWarnings(newRules)
-    };
+    } catch (error) {
+      console.error('[RuleTransformer] Error during transformation:', error);
+      return null;
+    }
   }
 
   validateRule(rule) {
@@ -125,3 +142,51 @@ export default class RuleTransformer {
       .map(rule => ({ id: rule.id, rule: rule.name, warnings: rule.warnings }));
   }
 }
+
+export const transformRules = (data) => {
+    console.log('[RuleTransformer] Starting rule transformation');
+
+    if (!data || !data.nodes || !Array.isArray(data.nodes)) {
+        console.error('[RuleTransformer] Invalid input data');
+        return null;
+    }
+
+    try {
+        const transformedNodes = data.nodes.map((node) => {
+            if (!node || !node.data) {
+                console.warn('[RuleTransformer] Invalid node:', node);
+                return null;
+            }
+
+            const { id, position, data } = node;
+            const transformedNode = {
+                id,
+                position,
+                type: 'custom-node',
+                data: {
+                    ...data,
+                    label: data.name || 'Unnamed Rule',
+                    description: data.description || 'No description available',
+                    type: data.type || 'Unknown',
+                    warnings: Array.isArray(data.warnings) ? data.warnings : [],
+                    dependencies: Array.isArray(data.dependencies) ? data.dependencies : [],
+                }
+            };
+
+            // Ensure all required fields exist
+            if (!transformedNode.data.label) transformedNode.data.label = 'Unnamed Rule';
+            if (!transformedNode.data.description) transformedNode.data.description = 'No description available';
+            if (!transformedNode.data.type) transformedNode.data.type = 'Unknown';
+            if (!Array.isArray(transformedNode.data.warnings)) transformedNode.data.warnings = [];
+            if (!Array.isArray(transformedNode.data.dependencies)) transformedNode.data.dependencies = [];
+
+            return transformedNode;
+        }).filter(Boolean); // Remove any null nodes
+
+        console.log('[RuleTransformer] Transformation complete:', transformedNodes.length, 'nodes processed');
+        return transformedNodes;
+    } catch (error) {
+        console.error('[RuleTransformer] Error during transformation:', error);
+        return null;
+    }
+};

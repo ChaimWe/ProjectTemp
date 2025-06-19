@@ -11,6 +11,8 @@ export const fetchAclsNames = async (region) => {
 };
 
 export const fetchAclDetail = async (region, name) => {
+    const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_BASE_URL
+    
     try {
         const response = await fetch(`${API_BASE_URL}/waf-acl-details/region/${region}/name/${name}`);
         return await response.json();

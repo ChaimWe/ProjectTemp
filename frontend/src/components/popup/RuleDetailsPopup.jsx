@@ -13,7 +13,7 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode }) => {
       </div>
 
       <div className="rule-action">
-        <span className={`action-badge ${rule.action.toLowerCase()}`}>
+        <span className={`action-badge ${rule.action ? rule.action.toLowerCase() : ''}`}>
           {rule.action || 'No Action'}
         </span>
         <span className="priority-badge priority-red">
@@ -23,12 +23,12 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode }) => {
 
       <AnalyzedInfoSection dataArray={dataArray} rule={rule.id} />
 
-      {rule.warnings.length > 0 && (
+      {(rule.warnings || []).length > 0 && (
         <section className="info-section warnings-section" style={{ backgroundColor: getColor('barBackground') }}>
           <h3 style={{ color: getColor('barText') }}>⚠️ Rule Warnings</h3>
           <div className="warnings-container">
             <ul>
-              {rule.warnings.map((issue, idx) => (
+              {(rule.warnings || []).map((issue, idx) => (
                 <li key={idx} className="warning-item">
                   {issue}
                 </li>
@@ -41,17 +41,17 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode }) => {
       <section className="info-section" style={{ backgroundColor: getColor('barBackground') }}>
         <h3 style={{ color: getColor('barText') }}>🔗 Dependant on rules</h3>
         <div className="labels-container">
-          {rule.labelState.length > 0 ? (
-            rule.labelState.map(([logic, label, rules], i) => (
+          {(rule.labelState || []).length > 0 ? (
+            (rule.labelState || []).map(([logic, label, rules], i) => (
               <div key={i} className="logic-container" style={{ color: getColor('barText'), marginBottom: '5px' }}>
-                {logic === '!' && i > 0 && rule.labelState[i - 1][0] && (
-                  <span style={{ color: '#ff9800' }}>{rule.labelState[i - 1][0]} </span>
+                {logic === '!' && i > 0 && (rule.labelState || [])[i - 1][0] && (
+                  <span style={{ color: '#ff9800' }}>{(rule.labelState || [])[i - 1][0]} </span>
                 )}
                 {logic && <span style={{ color: '#ff9800' }}>{logic} </span>}
                 <span>{label}</span> <br />
                 <small key={i} className="rule-reference">
-                  {rules.length > 0 ?
-                    rules.map((rule, i) => <><span key={i} onClick={() => centerNode(rule.id)}> → {rule.name}</span><br /></>) :
+                  {(rules || []).length > 0 ?
+                    (rules || []).map((rule, i) => <><span key={i} onClick={() => centerNode(rule.id)}> → {rule.name}</span><br /></>) :
                     <span onClick={() => document.querySelector('.warnings-section').scrollIntoView({ behavior: 'smooth' })}> → ⚠️</span>}
                 </small>
                 <br />
@@ -67,8 +67,8 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode }) => {
         <section className="info-section" style={{ backgroundColor: getColor('barBackground') }}>
           <h3 style={{ color: getColor('barText') }}>🏷️ Added Labels</h3>
           <div className="labels-container">
-            {rule.ruleLabels.length > 0 ? (
-              rule.ruleLabels.map(label => (
+            {(rule.ruleLabels || []).length > 0 ? (
+              (rule.ruleLabels || []).map(label => (
                 <span key={label} className="label-chip added">{label}</span>
               ))
             ) : (
@@ -80,8 +80,8 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode }) => {
         <section className="info-section" style={{ backgroundColor: getColor('barBackground') }}>
           <h3 style={{ color: getColor('barText') }}>📜 Insert Headers </h3>
           <div className="headers-container">
-            {rule.insertHeaders.length > 0 ? (
-              rule.insertHeaders.map(header => (
+            {(rule.insertHeaders || []).length > 0 ? (
+              (rule.insertHeaders || []).map(header => (
                 <span key={header.name} className="header-chip">{header.name}={header.value}</span>
               ))
             ) : (

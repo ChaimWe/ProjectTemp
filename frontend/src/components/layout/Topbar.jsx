@@ -1,116 +1,162 @@
-import { Box, IconButton, Tooltip, Badge, TextField, Button, Typography } from '@mui/material';
-import FitScreenIcon from '@mui/icons-material/FitScreen';
-import ImageIcon from '@mui/icons-material/Image';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import SearchIcon from '@mui/icons-material/Search';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import { useState } from 'react';
+import React from 'react';
+import { AppBar, Box, TextField, Button, Typography, Stack } from '@mui/material';
 import { useThemeContext } from '../../context/ThemeContext';
+import IconButton from '@mui/material/IconButton';
+import ReportIcon from '@mui/icons-material/Report';
+import Badge from '@mui/material/Badge';
+import DownloadIcon from '@mui/icons-material/Download';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import ImageIcon from '@mui/icons-material/Image';
 
-const TopBar = ({ searchTerm, setSearchTerm, onWarnings, warningCount, setLoaderPopupOpen, aclDetails, onExportPdf, onExportImage }) => {
-  const [showSearch, setShowSearch] = useState(false);
-  const { getColor } = useThemeContext();
+const TopBar = ({
+    searchTerm,
+    setSearchTerm,
+    setLoaderPopupOpen,
+    aclDetails,
+    warningCount,
+    onExportPdf,
+    onExportImage,
+    onWarnings
+}) => {
+    console.log('[TopBar] Render with props:', {
+        searchTerm,
+        aclDetails,
+        warningCount
+    });
 
-  return (
-    <Box
-      sx={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 50,
-        display: 'flex',
-        alignItems: 'center',
-        px: 2,
-        borderColor: getColor('border'),
-        boxShadow: getColor('shadow'),
-        backgroundColor: getColor('barBackground'),
-        zIndex: 1
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        <Tooltip title="Upload JSON">
-          <IconButton onClick={() => setLoaderPopupOpen(p => !p)} sx={{ color: getColor('barText') }}>
-            <CloudUploadIcon />
-          </IconButton  >
-        </Tooltip>
-        <Tooltip title="Export as PNG">
-          <IconButton sx={{ color: getColor('barText') }} onClick={onExportImage}>
-            <ImageIcon />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Export as PDF">
-          <IconButton sx={{ color: getColor('barText') }} onClick={onExportPdf}>
-            <PictureAsPdfIcon />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Search">
-          <IconButton
-            onClick={() => setShowSearch(!showSearch)}
-            sx={{ color: getColor('barText') }}
-          >
-            <SearchIcon />
-          </IconButton>
-        </Tooltip>
-        {showSearch && (
-          <TextField
-            size="small"
-            variant="outlined"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+    const { theme, toggleTheme } = useThemeContext();
+
+    const handleFileButtonClick = () => {
+        console.log('[TopBar] File button clicked');
+        setLoaderPopupOpen(true);
+    };
+
+    const handleSearchChange = (event) => {
+        console.log('[TopBar] Search changed:', event.target.value);
+        setSearchTerm(event.target.value);
+    };
+
+    const handleWarningsClick = () => {
+        console.log('[TopBar] Warnings clicked');
+        onWarnings();
+    };
+
+    const handleExportPdf = () => {
+        console.log('[TopBar] Export PDF clicked');
+        onExportPdf();
+    };
+
+    const handleExportImage = () => {
+        console.log('[TopBar] Export Image clicked');
+        onExportImage();
+    };
+
+    return (
+        <AppBar
+            position="absolute"
             sx={{
-              backgroundColor: getColor('background'), input: { color: getColor('barText') },
-              ml: 1,
-              width: 200,
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': {
-                  borderColor: getColor('border')
-                }
-              }
+                backgroundColor: theme === 'light' ? '#f5f5f5' : '#333',
+                color: theme === 'light' ? '#333' : '#fff',
+                boxShadow: 'none',
+                borderBottom: '1px solid',
+                borderColor: theme === 'light' ? '#ddd' : '#444',
             }}
-          />
-        )}
-      </Box>
-
-      <Box sx={{ flexGrow: 1, textAlign: 'center' }}>
-        <Typography variant='h6' sx={{ color: getColor('barText') }}>
-          <Tooltip title="ACL Name">
-            <span>{aclDetails.aclName || ''}</span>
-          </Tooltip>
-        </Typography>
-      </Box>
-
-      <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
-        {aclDetails.capacity > 1500 ? (
-          <WarningAmberIcon fontSize="small" sx={{ color: 'red' }} />
-        ) : aclDetails.capacity > 1300 ? (
-          <WarningAmberIcon fontSize="small" sx={{ color: 'orange' }} />
-        ) : null}
-        <Typography
-          variant="body2"
-          sx={{
-            color: getColor('text'),
-            mr: 1,
-            marginLeft: '10px'
-          }}
         >
-          <Tooltip title="WCUs used">
-            <span>{aclDetails.capacity > 0 ? `WCUs: ${aclDetails.capacity} / 1500` : ''}</span>
-          </Tooltip>
-        </Typography>
-        {warningCount > 0 && (
-          <Tooltip title="Show Validation Warnings">
-            <IconButton sx={{ color: getColor('barText') }} onClick={onWarnings}>
-              <Badge badgeContent={warningCount} color="warning">
-                <WarningAmberIcon />
-              </Badge>
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
-    </Box>
-  );
+            <Box
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 16px',
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
+                        {aclDetails?.aclName || 'WAF Rules'} {/* Fallback text if aclDetails is null */}
+                    </Typography>
+                    <TextField
+                        size="small"
+                        placeholder="Search..."
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        sx={{
+                            width: '200px',
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: theme === 'light' ? '#fff' : '#444',
+                            },
+                        }}
+                    />
+                </Box>
+
+                <Stack direction="row" spacing={1}>
+                    <Button
+                        variant="outlined"
+                        startIcon={<FileUploadIcon />}
+                        onClick={handleFileButtonClick}
+                        sx={{
+                            borderColor: theme === 'light' ? '#666' : '#999',
+                            color: theme === 'light' ? '#666' : '#fff',
+                            '&:hover': {
+                                borderColor: theme === 'light' ? '#333' : '#fff',
+                                backgroundColor: 'transparent',
+                            },
+                        }}
+                    >
+                        Load Rules
+                    </Button>
+
+                    <Button
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleFileButtonClick}
+                        sx={{
+                            borderColor: theme === 'light' ? '#666' : '#999',
+                            color: theme === 'light' ? '#666' : '#fff',
+                            '&:hover': {
+                                borderColor: theme === 'light' ? '#333' : '#fff',
+                                backgroundColor: 'transparent',
+                            },
+                        }}
+                    >
+                        Export Rules
+                    </Button>
+
+                    <IconButton
+                        onClick={handleExportPdf}
+                        sx={{
+                            color: theme === 'light' ? '#666' : '#fff',
+                            '&:hover': { color: theme === 'light' ? '#333' : '#ccc' },
+                        }}
+                    >
+                        <PictureAsPdfIcon />
+                    </IconButton>
+
+                    <IconButton
+                        onClick={handleExportImage}
+                        sx={{
+                            color: theme === 'light' ? '#666' : '#fff',
+                            '&:hover': { color: theme === 'light' ? '#333' : '#ccc' },
+                        }}
+                    >
+                        <ImageIcon />
+                    </IconButton>
+
+                    <IconButton
+                        onClick={handleWarningsClick}
+                        sx={{
+                            color: theme === 'light' ? '#666' : '#fff',
+                            '&:hover': { color: theme === 'light' ? '#333' : '#ccc' },
+                        }}
+                    >
+                        <Badge badgeContent={warningCount || 0} color="warning">
+                            <ReportIcon />
+                        </Badge>
+                    </IconButton>
+                </Stack>
+            </Box>
+        </AppBar>
+    );
 };
 
 export default TopBar;

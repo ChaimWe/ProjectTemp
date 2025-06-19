@@ -52,11 +52,14 @@ export default function Sidebar({ view, setView }) {
         '& .MuiDrawer-paper': {
           width: open ? drawerWidth : '64px',
           transition: 'width 0.2s ease-in-out',
-          bgcolor: getColor('barBackground'),
+          bgcolor: 'rgba(255,255,255,0.5)',
           borderRight: '1px solid',
           borderColor: getColor('border'),
-          boxShadow: getColor('shadow'),
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
           overflowX: 'hidden',
+          borderTopRightRadius: '24px',
+          borderBottomRightRadius: '24px',
+          backdropFilter: 'blur(4px)',
         },
       }}
     >
@@ -69,6 +72,9 @@ export default function Sidebar({ view, setView }) {
           borderBottom: '1px solid',
           borderColor: getColor('border'),
           minHeight: '64px',
+          background: 'rgba(255,255,255,0.5)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          borderTopRightRadius: '24px',
         }}
       >
         <IconButton
