@@ -19,7 +19,8 @@ export default class Tree {
                     hw: this.calculateCard(rule),
                     warnings: rule.warnings,
                     insertHeaders: rule.insertHeaders,
-                    level: rule.level
+                    level: rule.level,
+                    json: rule.json // <-- ensure JSON is available for popup
                 },
             });
         });
@@ -183,6 +184,7 @@ export const transformData = (data) => {
 
             const node = {
                 id: index.toString(),
+                type: 'custom-node',
                 data: { ...rule },
                 position: { x: 0, y: 0 },
             };

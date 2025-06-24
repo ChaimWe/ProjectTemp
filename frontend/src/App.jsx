@@ -1,12 +1,19 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, useOutletContext } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { CssBaseline } from '@mui/material';
 import HomePage from './pages/HomePage';
 import ExplorerPage from './pages/ExplorerPage';
 import AboutPage from './pages/AboutPage';
+import RequestDebugger from './debugger/RequestDebugger';
+import AppLayout from './AppLayout';
+import AppPlaceholder from './pages/AppPlaceholder';
+
+function DebuggerWithContext() {
+  const { data } = useOutletContext();
+  return <RequestDebugger rules={data} />;
+}
 
 export default function App() {
-  
   return (
     <ThemeProvider>
       <CssBaseline />
@@ -17,9 +24,13 @@ export default function App() {
         flexDirection: 'column'
       }}>
         <Routes>
+          <Route path="/app" element={<AppLayout />}>
+            <Route index element={<AppPlaceholder />} />
+            <Route path="visualization" element={<ExplorerPage />} />
+            <Route path="debugger" element={<DebuggerWithContext />} />
+          </Route>
           <Route path="/" element={<HomePage />} />
-          <Route path="/app" element={<ExplorerPage />} />
-          <Route path="/about" element={<AboutPage/>} /> 
+          <Route path="/about" element={<AboutPage />} />
         </Routes>
       </div>
     </ThemeProvider>

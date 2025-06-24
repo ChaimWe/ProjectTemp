@@ -66,9 +66,9 @@ export default class RuleTransformer {
       }
     });
 
-    if (rule.Name !== rule.VisibilityConfig.MetricName) {
+    /*if (rule.Name !== rule.VisibilityConfig.MetricName) {
       this.warnings.push(`Name and MetricName do not match`);
-    }
+    }*/
   }
 
   labelStatement(statement, rules, currentIndex) {
@@ -165,6 +165,7 @@ export const transformRules = (data) => {
                 type: 'custom-node',
                 data: {
                     ...data,
+                    json: data.json, // ensure json is present
                     label: data.name || 'Unnamed Rule',
                     description: data.description || 'No description available',
                     type: data.type || 'Unknown',

@@ -16,12 +16,19 @@ import {
 } from "@mui/material";
 import UploadJsonButton from "./UploadJsonButton";
 import { fetchAclDetail, fetchAclsNames } from './api';
+import { useThemeContext } from '../../context/ThemeContext';
 
+/**
+ * RulesLoaderPopup component handles uploading and loading rules from a JSON file.
+ * Shows a popup for file selection and error handling.
+ */
 const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
   const [step, setStep] = useState("initial");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [aclNames, setAclNames] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { getColor } = useThemeContext();
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   // Array of AWS WAF supported regions with code and display name
   const regions = [
@@ -45,9 +52,19 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
     { code: "sa-east-1", name: "South America (Sao Paulo)" }
   ];
 
+  /**
+   * Handles the upload and parsing of the JSON file.
+   */
   const handleJsonUpload = (jsonData) => {
-    onRulesReceived(jsonData);
-    onClose();
+    try {
+      let parsed = jsonData;
+      if (typeof jsonData === 'string') parsed = JSON.parse(jsonData);
+      onRulesReceived(parsed);
+      onClose();
+    } catch (e) {
+      setSnackbar({ open: true, message: 'Invalid JSON file', severity: 'error' });
+      setLoading(false);
+    }
   };
 
   const handleFetchFromServer = () => {
@@ -63,8 +80,7 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
       setAclNames(data);
       setStep("aclSelection");
     } catch (error) {
-      console.error("❌ Error fetching ACL names:", error);
-    } finally {
+      setSnackbar({ open: true, message: 'Error fetching ACL names', severity: 'error' });
       setLoading(false);
     }
   };
@@ -76,8 +92,7 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
       onRulesReceived(data);
       onClose();
     } catch (error) {
-      console.error("❌ Error fetching ACL details:", error);
-    } finally {
+      setSnackbar({ open: true, message: 'Error fetching ACL details', severity: 'error' });
       setLoading(false);
     }
   };
@@ -177,6 +192,22 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
           </Button>
           <Button onClick={onClose}>Cancel</Button>
         </DialogActions>
+      )}
+      {/* Snackbar for errors */}
+      {snackbar.open && (
+        <Box sx={{ position: 'fixed', bottom: 20, left: 20, zIndex: 9999 }}>
+          <div style={{
+            background: getColor('barBackground'),
+            color: getColor('barText'),
+            border: `1px solid ${getColor('border')}`,
+            borderRadius: 8,
+            padding: '8px 16px',
+            boxShadow: getColor('shadow'),
+            fontWeight: 500
+          }}>
+            {snackbar.message}
+          </div>
+        </Box>
       )}
     </Dialog>
   );

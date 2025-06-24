@@ -4,6 +4,10 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useThemeContext } from '../../context/ThemeContext';
 
+/**
+ * RuleJsonPopup component displays the raw JSON for a rule in a popup dialog.
+ * Handles closing the popup.
+ */
 const RuleJsonPopup = ({ json }) => {
   const { getColor } = useThemeContext();
   const [searchTerm, setSearchTerm] = useState('');
@@ -81,9 +85,12 @@ const RuleJsonPopup = ({ json }) => {
         overflow: 'auto'
       }}>
         <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordWrap: 'break-word', tabSize: 2 }}>
-          {(() => {
+          {(!json || (typeof json === 'object' && Object.keys(json).length === 0)) ? (
+            <div style={{ color: '#aaa', padding: 20 }}>No JSON data to display.</div>
+          ) : (() => {
             let globalMatchIndex = 0;
-            return json.split('\n').map((line, i) => {
+            const jsonString = typeof json === 'string' ? json : JSON.stringify(json, null, 2);
+            return jsonString.split('\n').map((line, i) => {
               const leadingSpaces = line.match(/^\s*/)[0].length;
               const parts = searchTerm ? line.split(new RegExp(`(${searchTerm})`, 'gi')) : [line];
 

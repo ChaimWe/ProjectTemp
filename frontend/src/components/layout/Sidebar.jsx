@@ -11,6 +11,7 @@ import {
   IconButton,
   Fade,
   Tooltip,
+  Box,
 } from '@mui/material';
 import {
   AccountTree as TreeIcon,
@@ -25,15 +26,22 @@ import { useThemeContext } from '../../context/ThemeContext';
 
 const drawerWidth = 240;
 
+/**
+ * Sidebar component renders the main navigation drawer with menu items and theme toggle.
+ * Handles navigation and theme switching.
+ */
 export default function Sidebar({ view, setView }) {
   const [open, setOpen] = useState(false);
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const { darkTheme, setDarkTheme, getColor } = useThemeContext();
 
+  /**
+   * Menu items for navigation and theme toggle.
+   */
   const menuItems = [
-    { key: 'home', label: 'Home', icon: <HomeIcon sx={{ color: getColor('barText') }} t='true' />,onClick:() => navigate('/')} ,
-    { key: 'tree', label: 'WAF Tree', icon: <TreeIcon sx={{ color: getColor('barText') }} t='true' /> },
-    { key: 'debugger', label: 'Request Debugger', icon: <DebugIcon sx={{ color: getColor('barText') }} /> },
+    { key: 'home', label: 'Home', icon: <HomeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/') },
+    { key: 'tree', label: 'WAF Tree', icon: <TreeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/app/visualization') },
+    { key: 'debugger', label: 'Request Debugger', icon: <DebugIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/debugger') },
     {
       key: 'theme',
       label: darkTheme ? 'Light Mode' : 'Dark Mode',
@@ -47,19 +55,21 @@ export default function Sidebar({ view, setView }) {
       variant="permanent"
       open={open}
       sx={{
-        width: open ? drawerWidth : '64px',
-        transition: 'width 0.2s ease-in-out',
+        zIndex: 1300,
+        width: open ? drawerWidth : '80px',
+        flexShrink: 0,
         '& .MuiDrawer-paper': {
-          width: open ? drawerWidth : '64px',
-          transition: 'width 0.2s ease-in-out',
-          bgcolor: 'rgba(255,255,255,0.5)',
-          borderRight: '1px solid',
-          borderColor: getColor('border'),
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          width: open ? drawerWidth : '80px',
+          boxSizing: 'border-box',
+          background: darkTheme ? '#181818' : '#fff',
+          color: darkTheme ? '#fff' : '#333',
+          borderRight: 'none',
+          boxShadow: '4px 0 12px rgba(0,0,0,0.1)',
           overflowX: 'hidden',
-          borderTopRightRadius: '24px',
-          borderBottomRightRadius: '24px',
-          backdropFilter: 'blur(4px)',
+          transition: (theme) => theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
         },
       }}
     >
@@ -67,29 +77,14 @@ export default function Sidebar({ view, setView }) {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: open ? 'flex-end' : 'center',
-          py: 0,
-          borderBottom: '1px solid',
-          borderColor: getColor('border'),
-          minHeight: '64px',
-          background: 'rgba(255,255,255,0.5)',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          borderTopRightRadius: '24px',
+          justifyContent: 'flex-end',
+          px: [1],
         }}
       >
-        <IconButton
-          onClick={() => setOpen(!open)}
-          sx={{
-            color: getColor('barText'),
-            transform: open ? 'none' : 'rotate(180deg)',
-            transition: 'transform 0.2s ease-in-out',
-            p: 0.5,
-          }}
-        >
-          {open ? <ChevronLeftIcon /> : <MenuIcon />}
+        <IconButton onClick={() => setOpen(!open)}>
+          {open ? <ChevronLeftIcon sx={{color: darkTheme ? '#fff' : '#333'}} /> : <MenuIcon sx={{color: darkTheme ? '#fff' : '#333'}} />}
         </IconButton>
       </Toolbar>
-
       <List>
         {menuItems.map((item) => (
           <ListItem key={item.key} disablePadding>

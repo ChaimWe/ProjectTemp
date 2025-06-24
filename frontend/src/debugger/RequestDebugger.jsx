@@ -35,6 +35,9 @@ import BugReportIcon from '@mui/icons-material/BugReport';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import SecurityIcon from '@mui/icons-material/Security';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import CustomSnackbar from '../components/popup/CustomSnackbar';
+import bgImage from '../assets/pexels-scottwebb-1029624.jpg';
+import { useThemeContext } from '../context/ThemeContext';
 
 /**
  * RequestDebugger component for testing AWS WAF rules.
@@ -45,6 +48,24 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
  * 4. View detailed information about rule matches
  */
 const RequestDebugger = ({ rules = [] }) => {
+    console.log('[RequestDebugger] Received rules:', rules);
+    console.log('[RequestDebugger] Rules type:', typeof rules);
+    console.log('[RequestDebugger] Is array:', Array.isArray(rules));
+    console.log('[RequestDebugger] Length:', rules?.length);
+    
+    // Print a sample of the rules for debugging
+    if (Array.isArray(rules)) {
+        console.log('[RequestDebugger] Sample rules:', rules.slice(0, 3));
+        console.log('[RequestDebugger] All rules:', rules);
+    }
+    
+    // Filter out falsy or empty rules
+    const safeRules = Array.isArray(rules) ? rules.filter(r => r && Object.keys(r).length > 0) : [];
+    console.log('[RequestDebugger] Safe rules length:', safeRules.length);
+    if (safeRules.length > 0) {
+        console.log('[RequestDebugger] First safe rule:', safeRules[0]);
+    }
+    
     const [loading, setLoading] = useState(false);
     const [testResults, setTestResults] = useState(null);
     const [stepMode, setStepMode] = useState(false);
@@ -64,8 +85,73 @@ const RequestDebugger = ({ rules = [] }) => {
         requestNumber: 1  // Add this line
     });
 
-    // Add safe access to rules with fallback
-    const safeRules = Array.isArray(rules) ? rules : [];
+    // Search and loader state
+    const [searchTerm, setSearchTerm] = useState('');
+    const [loaderPopupOpen, setLoaderPopupOpen] = useState(false);
+    const [warningCount, setWarningCount] = useState(0);
+
+    const { darkTheme, getColor } = useThemeContext();
+
+    // Fallback UI if no rules are loaded
+    if (!safeRules.length) {
+        return (
+            <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+                {/* Background */}
+                <Box sx={{ 
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundImage: `url(${bgImage})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                    zIndex: 0
+                }} />
+                
+                {/* Content area */}
+                <Box sx={{ 
+                    position: 'absolute',
+                    top: '24px',
+                    left: '30px',
+                    right: '20px',
+                    bottom: '20px',
+                    overflow: 'auto',
+                    zIndex: 1
+                }}>
+                    <Container maxWidth="xl" sx={{ 
+                        p: 2,
+                        height: '100%',
+                        position: 'relative',
+                        '& .MuiPaper-root': {
+                            background: darkTheme ? getColor('barBackground') : 'rgba(255, 255, 255, 0.85)',
+                            color: getColor('barText'),
+                            backdropFilter: 'blur(10px)',
+                            borderRadius: 2,
+                            border: `1px solid ${getColor('border')}`,
+                            boxShadow: getColor('shadow'),
+                            mb: 2,
+                            position: 'relative',
+                            '&:hover': {
+                                background: darkTheme ? getColor('hover') : 'rgba(255, 255, 255, 0.9)'
+                            }
+                        }
+                    }}>
+                        <Typography variant="h6" sx={{ 
+                            color: getColor('barText'),
+                            textShadow: darkTheme ? '0 0 10px rgba(0,0,0,0.3)' : undefined
+                        }}>
+                            No rules loaded. Please load rules in the Visualization view first.
+                        </Typography>
+                    </Container>
+                </Box>
+            </Box>
+        );
+    }
+
+    // Log to confirm main UI is being rendered
+    console.log('[RequestDebugger] Rendering main debugger UI');
 
     // Reset rule evaluation state
     const resetRuleEvaluation = () => {
@@ -1750,277 +1836,252 @@ const RequestDebugger = ({ rules = [] }) => {
         };
 
         return (
-            <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: '#f0f7ff' }}>
-                <Typography variant="subtitle1" gutterBottom>
-                    <strong>Current Request State</strong>
-                </Typography>
+            <Box>
+                <Paper variant="outlined" sx={{ p: 2, mb: 3, background: darkTheme ? getColor('barBackground') : undefined, color: getColor('barText'), border: `1px solid ${getColor('border')}` }}>
+                    <Typography variant="subtitle1" gutterBottom sx={{ color: getColor('barText') }}>
+                        <strong>Current Request State</strong>
+                    </Typography>
 
-                <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                        <Box>
-                            <Typography variant="body2" fontWeight="bold" color="primary">
-                                Base Request
-                            </Typography>
-                            <Box sx={{ ml: 2, mb: 2 }}>
-                                <Typography variant="body2">
-                                    <strong>Method:</strong> {request.method}
+                    <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                            <Box>
+                                <Typography variant="body2" fontWeight="bold" color="primary">
+                                    Base Request
                                 </Typography>
-                                <Typography variant="body2">
-                                    <strong>Path:</strong> {request.uri}
-                                </Typography>
-                                {request.queryString && (
+                                <Box sx={{ ml: 2, mb: 2 }}>
                                     <Typography variant="body2">
-                                        <strong>Query:</strong> {request.queryString}
+                                        <strong>Method:</strong> {request.method}
                                     </Typography>
-                                )}
-                                <Typography variant="body2" sx={{ mt: 1 }}>
-                                    <strong>Original Headers:</strong>
-                                </Typography>
-                                <Box sx={{ ml: 2, fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                                    {Object.entries(request.headers).map(([name, values]) => (
-                                        <Typography key={name} variant="body2">
-                                            {name}: {values[0].value}
+                                    <Typography variant="body2">
+                                        <strong>Path:</strong> {request.uri}
+                                    </Typography>
+                                    {request.queryString && (
+                                        <Typography variant="body2">
+                                            <strong>Query:</strong> {request.queryString}
                                         </Typography>
-                                    ))}
+                                    )}
+                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                        <strong>Original Headers:</strong>
+                                    </Typography>
+                                    <Box sx={{ ml: 2, fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                                        {Object.entries(request.headers).map(([name, values]) => (
+                                            <Typography key={name} variant="body2">
+                                                {name}: {values[0].value}
+                                            </Typography>
+                                        ))}
+                                    </Box>
                                 </Box>
                             </Box>
-                        </Box>
-                    </Grid>
+                        </Grid>
 
-                    <Grid item xs={12} md={6}>
-                        <Box>
-                            <Typography variant="body2" fontWeight="bold" color="secondary">
-                                Modifications by Rules
-                            </Typography>
+                        <Grid item xs={12} md={6}>
+                            <Box>
+                                <Typography variant="body2" fontWeight="bold" color="secondary">
+                                    Modifications by Rules
+                                </Typography>
 
-                            {filteredLabels.length > 0 && (
-                                <Box sx={{ ml: 2, mb: 2 }}>
-                                    <Typography variant="body2" color="secondary">
-                                        <strong>Labels Added:</strong>
-                                    </Typography>
-                                    <Table size="small" sx={{ mt: 1 }}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Label</TableCell>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Added by Rule</TableCell>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Priority</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {filteredLabels.map((label, idx) => (
-                                                <TableRow key={idx} hover>
-                                                    <TableCell sx={{ py: 1, px: 1 }}>
-                                                        <Chip
-                                                            label={label.name}
-                                                            size="small"
-                                                            color="info"
-                                                            variant="outlined"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell sx={{ py: 1, px: 1 }}>
-                                                        <Typography variant="caption" fontWeight="medium">
-                                                            {label.addedByRule}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell sx={{ py: 1, px: 1 }}>
-                                                        {label.priority}
-                                                    </TableCell>
+                                {filteredLabels.length > 0 && (
+                                    <Box sx={{ ml: 2, mb: 2 }}>
+                                        <Typography variant="body2" color="secondary">
+                                            <strong>Labels Added:</strong>
+                                        </Typography>
+                                        <Table size="small" sx={{ mt: 1 }}>
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Label</TableCell>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Added by Rule</TableCell>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Priority</TableCell>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </Box>
-                            )}
-
-                            {filteredHeaders.length > 0 && (
-                                <Box sx={{ ml: 2, mb: 2 }}>
-                                    <Typography variant="body2" color="secondary">
-                                        <strong>Headers Added:</strong>
-                                    </Typography>
-                                    <Table size="small" sx={{ mt: 1 }}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Header</TableCell>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Value</TableCell>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Added by Rule</TableCell>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Priority</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {filteredHeaders.map((header, idx) => (
-                                                <TableRow key={idx} hover>
-                                                    <TableCell sx={{ py: 1, px: 1, fontFamily: 'monospace' }}>
-                                                        {header.name}
-                                                    </TableCell>
-                                                    <TableCell sx={{ py: 1, px: 1, fontFamily: 'monospace' }}>
-                                                        {header.value}
-                                                    </TableCell>
-                                                    <TableCell sx={{ py: 1, px: 1 }}>
-                                                        <Typography variant="caption" fontWeight="medium">
-                                                            {header.addedByRule}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell sx={{ py: 1, px: 1 }}>
-                                                        {header.priority}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </Box>
-                            )}
-
-                            {filteredActions.length > 0 && (
-                                <Box sx={{ ml: 2 }}>
-                                    <Typography variant="body2" color="secondary">
-                                        <strong>Actions Taken:</strong>
-                                    </Typography>
-                                    <Table size="small" sx={{ mt: 1 }}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Action</TableCell>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Applied by Rule</TableCell>
-                                                <TableCell sx={{ py: 1, px: 1 }}>Priority</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {filteredActions.map((action, idx) => {
-                                                let chipColor;
-                                                let actionLabel = action.type;
-
-                                                // Special handling for counting actions
-                                                if (isCountingAction(action)) {
-                                                    const rule = safeRules.find(r => r.Name === action.rule);
-                                                    const rateStatus = getRateLimitStatus(rule);
-                                                    if (rateStatus) {
-                                                        actionLabel = `Count (${rateStatus.requestNumber}/${rateStatus.limit} requests)`;
-                                                    }
-                                                }
-
-                                                switch (action.type) {
-                                                    case 'Block':
-                                                        chipColor = 'error';
-                                                        break;
-                                                    case 'Allow':
-                                                        chipColor = 'success';
-                                                        break;
-                                                    case 'Count':
-                                                        chipColor = 'info';
-                                                        break;
-                                                    case 'CAPTCHA':
-                                                    case 'Challenge':
-                                                        chipColor = 'warning';
-                                                        break;
-                                                    default:
-                                                        chipColor = 'default';
-                                                }
-
-                                                return (
+                                            </TableHead>
+                                            <TableBody>
+                                                {filteredLabels.map((label, idx) => (
                                                     <TableRow key={idx} hover>
                                                         <TableCell sx={{ py: 1, px: 1 }}>
                                                             <Chip
-                                                                label={actionLabel}
-                                                                color={chipColor}
+                                                                label={label.name}
                                                                 size="small"
+                                                                color="info"
+                                                                variant="outlined"
                                                             />
                                                         </TableCell>
                                                         <TableCell sx={{ py: 1, px: 1 }}>
                                                             <Typography variant="caption" fontWeight="medium">
-                                                                {action.rule}
+                                                                {label.addedByRule}
                                                             </Typography>
                                                         </TableCell>
                                                         <TableCell sx={{ py: 1, px: 1 }}>
-                                                            {action.priority}
+                                                            {label.priority}
                                                         </TableCell>
                                                     </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </Box>
-                            )}
-                        </Box>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </Box>
+                                )}
+
+                                {filteredHeaders.length > 0 && (
+                                    <Box sx={{ ml: 2, mb: 2 }}>
+                                        <Typography variant="body2" color="secondary">
+                                            <strong>Headers Added:</strong>
+                                        </Typography>
+                                        <Table size="small" sx={{ mt: 1 }}>
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Header</TableCell>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Value</TableCell>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Added by Rule</TableCell>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Priority</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {filteredHeaders.map((header, idx) => (
+                                                    <TableRow key={idx} hover>
+                                                        <TableCell sx={{ py: 1, px: 1, fontFamily: 'monospace' }}>
+                                                            {header.name}
+                                                        </TableCell>
+                                                        <TableCell sx={{ py: 1, px: 1, fontFamily: 'monospace' }}>
+                                                            {header.value}
+                                                        </TableCell>
+                                                        <TableCell sx={{ py: 1, px: 1 }}>
+                                                            <Typography variant="caption" fontWeight="medium">
+                                                                {header.addedByRule}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell sx={{ py: 1, px: 1 }}>
+                                                            {header.priority}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </Box>
+                                )}
+
+                                {filteredActions.length > 0 && (
+                                    <Box sx={{ ml: 2 }}>
+                                        <Typography variant="body2" color="secondary">
+                                            <strong>Actions Taken:</strong>
+                                        </Typography>
+                                        <Table size="small" sx={{ mt: 1 }}>
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Action</TableCell>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Applied by Rule</TableCell>
+                                                    <TableCell sx={{ py: 1, px: 1 }}>Priority</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {filteredActions.map((action, idx) => {
+                                                    let chipColor;
+                                                    let actionLabel = action.type;
+
+                                                    // Special handling for counting actions
+                                                    if (isCountingAction(action)) {
+                                                        const rule = safeRules.find(r => r.Name === action.rule);
+                                                        const rateStatus = getRateLimitStatus(rule);
+                                                        if (rateStatus) {
+                                                            actionLabel = `Count (${rateStatus.requestNumber}/${rateStatus.limit} requests)`;
+                                                        }
+                                                    }
+
+                                                    switch (action.type) {
+                                                        case 'Block':
+                                                            chipColor = 'error';
+                                                            break;
+                                                        case 'Allow':
+                                                            chipColor = 'success';
+                                                            break;
+                                                        case 'Count':
+                                                            chipColor = 'info';
+                                                            break;
+                                                        case 'CAPTCHA':
+                                                        case 'Challenge':
+                                                            chipColor = 'warning';
+                                                            break;
+                                                        default:
+                                                            chipColor = 'default';
+                                                    }
+
+                                                    return (
+                                                        <TableRow key={idx} hover>
+                                                            <TableCell sx={{ py: 1, px: 1 }}>
+                                                                <Chip
+                                                                    label={actionLabel}
+                                                                    color={chipColor}
+                                                                    size="small"
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell sx={{ py: 1, px: 1 }}>
+                                                                <Typography variant="caption" fontWeight="medium">
+                                                                    {action.rule}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell sx={{ py: 1, px: 1 }}>
+                                                                {action.priority}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </Box>
+                                )}
+                            </Box>
+                        </Grid>
                     </Grid>
-                </Grid>
-            </Paper>
-        );
-    };
-
-    // Custom Snackbar to prevent prop leaking
-    const CustomSnackbar = (props) => {
-        const { open, message, severity, onClose, anchorOrigin } = props;
-
-        // Return null when not open to avoid rendering anything
-        if (!open) return null;
-
-        // Style for positioning the snackbar based on anchorOrigin
-        const getPositionStyle = () => {
-            const horizontal = anchorOrigin?.horizontal || 'center';
-            const vertical = anchorOrigin?.vertical || 'bottom';
-
-            return {
-                position: 'fixed',
-                zIndex: 1400,
-                left: horizontal === 'left' ? '24px' : horizontal === 'right' ? 'auto' : '50%',
-                right: horizontal === 'right' ? '24px' : 'auto',
-                bottom: vertical === 'bottom' ? '24px' : 'auto',
-                top: vertical === 'top' ? '24px' : 'auto',
-                transform: horizontal === 'center' ? 'translateX(-50%)' : 'none',
-            };
-        };
-
-        // Auto-hide effect
-        useEffect(() => {
-            if (open) {
-                const timer = setTimeout(() => {
-                    onClose();
-                }, 6000);
-
-                return () => clearTimeout(timer);
-            }
-        }, [open, onClose]);
-
-        return (
-            <Box sx={getPositionStyle()}>
-                <Alert
-                    severity={severity}
-                    onClose={onClose}
-                    sx={{
-                        boxShadow: '0px 3px 5px -1px rgba(0,0,0,0.2), 0px 6px 10px 0px rgba(0,0,0,0.14), 0px 1px 18px 0px rgba(0,0,0,0.12)',
-                        minWidth: '288px',
-                        maxWidth: '500px'
-                    }}
-                >
-                    {message}
-                </Alert>
+                </Paper>
             </Box>
         );
     };
 
+    // Main UI render
     return (
-        <Container maxWidth="xl" sx={{ pt: 3 }}>
-            <Typography variant="h4" component="h1" gutterBottom>
-                WAF Rule Request Debugger
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-                Test requests against WAF rules to see which rules would be triggered.
-            </Typography>
-
-            <Stack spacing={3}>
-                <Paper elevation={2} sx={{ p: 3 }}>
-                    <Typography variant="h6" component="h2" gutterBottom>
-                        Request Configuration
+        <Box sx={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+            {/* Background image */}
+            <Box
+                component="img"
+                src={bgImage}
+                alt="Background"
+                sx={{
+                    position: 'fixed',
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    zIndex: 0
+                }}
+            />
+            {/* Content area, full-bleed */}
+            <Box sx={{
+                position: 'absolute',
+                top: '64px',
+                left: '80px',
+                right: '20px',
+                bottom: '20px',
+                overflow: 'auto',
+                zIndex: 1,
+                width: 'auto',
+                height: 'auto',
+                p: 0,
+                m: 0,
+                background: darkTheme ? getColor('background') : 'rgba(255,255,255,0.85)',
+                color: getColor('barText'),
+                borderRadius: 2,
+                border: `1px solid ${getColor('border')}`,
+                boxShadow: getColor('shadow')
+            }}>
+                {/* Request Configuration Form */}
+                <Paper variant="outlined" sx={{ p: 3, mb: 3, background: darkTheme ? getColor('barBackground') : undefined, color: getColor('barText'), border: `1px solid ${getColor('border')}` }}>
+                    <Typography variant="h6" gutterBottom sx={{ color: getColor('barText') }}>
+                        Test Request Configuration
                     </Typography>
-
-                    <Grid container spacing={2}>
-                        <Grid item xs={12} md={4}>
-                            <FormControl fullWidth margin="normal">
-                                <InputLabel id="method-label">HTTP Method</InputLabel>
+                    <Grid container spacing={3}>
+                        {/* Method and Path */}
+                        <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth>
+                                <InputLabel>Method</InputLabel>
                                 <Select
-                                    labelId="method-label"
                                     value={requestConfig.method}
                                     onChange={(e) => handleChange('method', e.target.value)}
-                                    label="HTTP Method"
                                 >
                                     <MenuItem value="GET">GET</MenuItem>
                                     <MenuItem value="POST">POST</MenuItem>
@@ -2029,411 +2090,156 @@ const RequestDebugger = ({ rules = [] }) => {
                                 </Select>
                             </FormControl>
                         </Grid>
-
-                        <Grid item xs={12} md={8}>
-                            <FormControl fullWidth margin="normal">
-                                <TextField
-                                    label="Path"
-                                    placeholder="/path/to/resource"
-                                    value={requestConfig.path}
-                                    onChange={(e) => handleChange('path', e.target.value)}
-                                />
-                            </FormControl>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                fullWidth
+                                label="Path"
+                                value={requestConfig.path}
+                                onChange={(e) => handleChange('path', e.target.value)}
+                                placeholder="/api/resource"
+                            />
                         </Grid>
 
+                        {/* Query Parameters */}
                         <Grid item xs={12}>
-                            <FormControl fullWidth margin="normal">
-                                <TextField
-                                    label="Query Parameters"
-                                    placeholder="param1=value1&param2=value2"
-                                    value={requestConfig.queryParams}
-                                    onChange={(e) => handleChange('queryParams', e.target.value)}
-                                />
-                            </FormControl>
+                            <TextField
+                                fullWidth
+                                label="Query Parameters"
+                                value={requestConfig.queryParams}
+                                onChange={(e) => handleChange('queryParams', e.target.value)}
+                                placeholder="param1=value1&param2=value2"
+                            />
                         </Grid>
 
+                        {/* Headers */}
                         <Grid item xs={12}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 2 }}>
-                                <Typography variant="subtitle1">Headers</Typography>
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                    Headers
+                                </Typography>
+                                {requestConfig.headers.map((header, index) => (
+                                    <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                                        <TextField
+                                            label="Name"
+                                            value={header.name}
+                                            onChange={(e) => updateHeader(index, 'name', e.target.value)}
+                                            size="small"
+                                        />
+                                        <TextField
+                                            label="Value"
+                                            value={header.value}
+                                            onChange={(e) => updateHeader(index, 'value', e.target.value)}
+                                            size="small"
+                                            sx={{ flex: 1 }}
+                                        />
+                                        <IconButton onClick={() => removeHeader(index)} color="error">
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </Box>
+                                ))}
                                 <Button
                                     startIcon={<AddIcon />}
+                                    onClick={addHeader}
                                     variant="outlined"
                                     size="small"
-                                    onClick={addHeader}
-                                    sx={{ ml: 2 }}
                                 >
-                                    Add
+                                    Add Header
                                 </Button>
                             </Box>
-
-                            {requestConfig.headers.map((header, index) => (
-                                <Box key={index} sx={{ display: 'flex', mb: 2 }}>
-                                    <TextField
-                                        label="Header Name"
-                                        placeholder="Header Name"
-                                        value={header.name}
-                                        onChange={(e) => updateHeader(index, 'name', e.target.value)}
-                                        sx={{ width: '40%', mr: 1 }}
-                                    />
-                                    <TextField
-                                        label="Header Value"
-                                        placeholder="Header Value"
-                                        value={header.value}
-                                        onChange={(e) => updateHeader(index, 'value', e.target.value)}
-                                        sx={{ width: '50%', mr: 1 }}
-                                    />
-                                    <IconButton
-                                        color="error"
-                                        onClick={() => removeHeader(index)}
-                                        sx={{ mt: 1 }}
-                                    >
-                                        <DeleteIcon />
-                                    </IconButton>
-                                </Box>
-                            ))}
                         </Grid>
 
+                        {/* Body */}
                         <Grid item xs={12}>
-                            <FormControl fullWidth margin="normal">
-                                <TextField
-                                    label="Request Body"
-                                    placeholder='{"key": "value"}'
-                                    value={requestConfig.body}
-                                    onChange={(e) => handleChange('body', e.target.value)}
-                                    multiline
-                                    rows={4}
-                                />
-                            </FormControl>
-                        </Grid>
-
-                        <Grid item xs={12} md={6}>
-                            <FormControl fullWidth margin="normal">
-                                <TextField
-                                    label="Request Number (for Rate Limit Rules)"
-                                    type="number"
-                                    value={requestConfig.requestNumber}
-                                    onChange={(e) => handleChange('requestNumber', parseInt(e.target.value) || 1)}
-                                    helperText="Specify which request number this is in the sequence (for rate limit rules)"
-                                />
-                            </FormControl>
-                        </Grid>
-
-                        <Grid item xs={12}>
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={stepMode}
-                                        onChange={() => setStepMode(!stepMode)}
-                                    />
-                                }
-                                label="Step-by-step rule evaluation"
-                            />
-                        </Grid>
-
-                        <Grid item xs={12}>
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                onClick={testRequest}
-                                disabled={loading}
+                            <TextField
                                 fullWidth
-                                startIcon={<BugReportIcon />}
-                            >
-                                {stepMode ? "Start Step-by-Step Evaluation" : "Test Request"}
-                            </Button>
+                                label="Request Body"
+                                value={requestConfig.body}
+                                onChange={(e) => handleChange('body', e.target.value)}
+                                multiline
+                                rows={4}
+                            />
                         </Grid>
                     </Grid>
+
+                    {/* Test Controls */}
+                    <Box sx={{ mt: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <Button
+                            variant="contained"
+                            onClick={testRequest}
+                            disabled={loading}
+                            startIcon={<BugReportIcon />}
+                        >
+                            Test Request
+                        </Button>
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={stepMode}
+                                    onChange={(e) => setStepMode(e.target.checked)}
+                                />
+                            }
+                            label="Step-by-Step Mode"
+                        />
+                    </Box>
                 </Paper>
 
-                {stepMode && ruleHistory.length > 0 ? (
-                    <Paper elevation={2} sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                            <Typography variant="h6" component="h2">
-                                Step-by-Step Evaluation
-                            </Typography>
-                            <Chip
-                                label={`Rule ${currentRuleIndex + 1} of ${safeRules.length}`}
-                                color="secondary"
-                                sx={{ ml: 2 }}
-                            />
+                {/* Test Results */}
+                {testResults && !stepMode && (
+                    <Paper variant="outlined" sx={{ p: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Test Results
+                        </Typography>
+                        <Box>
+                            {testResults.matchedRules.map((match, index) => (
+                                <Accordion key={index}>
+                                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                        <Typography>
+                                            Rule: {match.rule.Name} (Priority: {match.rule.Priority})
+                                        </Typography>
+                                    </AccordionSummary>
+                                    <AccordionDetails>
+                                        {renderMatchSummary(match.result)}
+                                        {renderRuleActions(match.rule.Action)}
+                                    </AccordionDetails>
+                                </Accordion>
+                            ))}
                         </Box>
+                    </Paper>
+                )}
 
-                        {currentRequestState && renderCurrentRequest(currentRequestState)}
-
-                        <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: '#f8f8f8' }}>
-                            <Typography variant="subtitle1" gutterBottom>Current Rule:</Typography>
-                            <Typography><strong>Name:</strong> {safeRules[currentRuleIndex]?.Name || 'Unknown'}</Typography>
-                            <Typography><strong>Priority:</strong> {safeRules[currentRuleIndex]?.Priority || 'Unknown'}</Typography>
-                            <Typography><strong>Action:</strong> {safeRules[currentRuleIndex]?.Action ? Object.keys(safeRules[currentRuleIndex]?.Action)[0] : 'Unknown'}</Typography>
-
-                            {safeRules[currentRuleIndex]?.RuleLabels && (
-                                <Typography>
-                                    <strong>Labels:</strong> {safeRules[currentRuleIndex]?.RuleLabels.map(l => l.Name).join(', ')}
-                                </Typography>
-                            )}
-
-                            <Divider sx={{ my: 2 }} />
-
-                            <Typography variant="subtitle1" gutterBottom>Result:</Typography>
-                            <Chip
-                                label={ruleHistory[ruleHistory.length - 1].result.matched ? "MATCHED" : "NOT MATCHED"}
-                                color={ruleHistory[ruleHistory.length - 1].result.matched ? "success" : "default"}
-                                sx={{ mb: 1 }}
-                            />
-
-                            {ruleHistory[ruleHistory.length - 1].result.matched && (
-                                <>
-                                    <Paper variant="outlined" sx={{ p: 1, mt: 1, bgcolor: '#fff' }}>
-                                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.875rem' }}>
-                                            {JSON.stringify(ruleHistory[ruleHistory.length - 1].result.details, null, 2)}
-                                        </pre>
-                                    </Paper>
-
-                                    {renderRuleActions(ruleHistory[ruleHistory.length - 1].result.actions)}
-                                </>
-                            )}
-                        </Paper>
-
-                        {/* Step-by-step navigation controls */}
-                        <Box display="flex" gap={2} mt={2}>
+                {/* Step Mode UI */}
+                {stepMode && currentRequestState && (
+                    <>
+                        {renderCurrentRequest(currentRequestState)}
+                        <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                             <Button
-                                variant="contained"
-                                color="primary"
                                 onClick={stepToPreviousRule}
-                                disabled={currentRuleIndex <= 0}
-                                startIcon={<NavigateNextIcon style={{ transform: 'rotate(180deg)' }} />}
+                                disabled={currentRuleIndex === 0}
+                                startIcon={<NavigateNextIcon sx={{ transform: 'rotate(180deg)' }} />}
                             >
                                 Previous Rule
                             </Button>
                             <Button
-                                variant="contained"
-                                color="primary"
                                 onClick={stepToNextRule}
                                 disabled={currentRuleIndex >= safeRules.length - 1}
                                 endIcon={<NavigateNextIcon />}
                             >
                                 Next Rule
                             </Button>
-                            <Button
-                                variant="outlined"
-                                onClick={resetRuleEvaluation}
-                                color="secondary"
-                            >
-                                Reset Evaluation
-                            </Button>
                         </Box>
-
-                        {/* Add a section to display active labels */}
-                        <Box sx={{ mt: 3, p: 2, bgcolor: '#f0f0f0', borderRadius: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                                Active Labels:
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {Array.from(triggeredLabels).length > 0 ? (
-                                    Array.from(triggeredLabels).map((label, idx) => (
-                                        <Chip
-                                            key={idx}
-                                            label={label}
-                                            color="info"
-                                            size="small"
-                                            variant="outlined"
-                                        />
-                                    ))
-                                ) : (
-                                    <Typography variant="body2" color="text.secondary">
-                                        No labels active yet
-                                    </Typography>
-                                )}
-                            </Box>
-                        </Box>
-
-                        {/* Rule history */}
-                        <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
-                            Evaluation History
-                        </Typography>
-                        <Accordion>
-                            <AccordionSummary
-                                expandIcon={<ExpandMoreIcon />}
-                            >
-                                <Typography>Rule Evaluation History</Typography>
-                            </AccordionSummary>
-                            <AccordionDetails>
-                                <Table size="small">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Rule</TableCell>
-                                            <TableCell>Priority</TableCell>
-                                            <TableCell>Result</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {ruleHistory.map((historyItem, index) => (
-                                            <TableRow key={index}>
-                                                <TableCell>{historyItem.rule.Name || 'Unknown'}</TableCell>
-                                                <TableCell>{historyItem.rule.Priority || 'Unknown'}</TableCell>
-                                                <TableCell>
-                                                    <Chip
-                                                        label={historyItem.result.matched ? "MATCHED" : "NOT MATCHED"}
-                                                        color={historyItem.result.matched ? "success" : "default"}
-                                                        size="small"
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </AccordionDetails>
-                        </Accordion>
-                    </Paper>
-                ) : (
-                    testResults && (
-                        <Paper elevation={2} sx={{ p: 3 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                <Typography variant="h6" component="h2">
-                                    Test Results
-                                </Typography>
-                                <Chip
-                                    label={`${testResults.matchedRules.length} Rules Matched`}
-                                    color={testResults.matchedRules.length > 0 ? "error" : "success"}
-                                    sx={{ ml: 2 }}
-                                />
-                            </Box>
-
-                            {/* Add Current Request State section */}
-                            {renderCurrentRequest({
-                                ...testResults.request,
-                                addedLabels: testResults.matchedRules.flatMap(match =>
-                                    match.rule.RuleLabels?.map(label => ({
-                                        name: label.Name,
-                                        addedByRule: match.rule.Name,
-                                        priority: match.rule.Priority
-                                    })) || []
-                                ),
-                                addedHeaders: testResults.matchedRules.flatMap(match =>
-                                    match.rule.Action?.Count?.CustomRequestHandling?.InsertHeaders?.map(header => ({
-                                        name: header.Name,
-                                        value: header.Value,
-                                        addedByRule: match.rule.Name,
-                                        priority: match.rule.Priority
-                                    })) || []
-                                ),
-                                actions: testResults.matchedRules.map(match => {
-                                    const actionType = match.rule.Action ? Object.keys(match.rule.Action)[0] : 'Unknown';
-                                    return {
-                                        type: actionType,
-                                        action: match.rule.Action[actionType]?.action || actionType,
-                                        rule: match.rule.Name,
-                                        priority: match.rule.Priority,
-                                        details: match.result.details
-                                    };
-                                })
-                            })}
-
-                            <Accordion defaultExpanded>
-                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                    <Typography>Request Details</Typography>
-                                </AccordionSummary>
-                                <AccordionDetails>
-                                    <Box sx={{ ml: 2 }}>
-                                        <Typography><strong>Method:</strong> {testResults.request.method}</Typography>
-                                        <Typography><strong>URI:</strong> {testResults.request.uri}</Typography>
-                                        <Typography><strong>Query String:</strong> {testResults.request.queryString || '(none)'}</Typography>
-                                        <Typography sx={{ mt: 1 }}><strong>Headers:</strong></Typography>
-                                        <Box sx={{ ml: 2 }}>
-                                            {Object.entries(testResults.request.headers).map(([name, values]) => (
-                                                <Typography key={name} variant="body2">{name}: {values[0].value}</Typography>
-                                            ))}
-                                        </Box>
-                                        {testResults.request.body && (
-                                            <>
-                                                <Typography sx={{ mt: 1 }}><strong>Body:</strong></Typography>
-                                                <Paper variant="outlined" sx={{ p: 1, mt: 0.5, bgcolor: '#f5f5f5' }}>
-                                                    <pre style={{ margin: 0, overflowX: 'auto' }}>{testResults.request.body}</pre>
-                                                </Paper>
-                                            </>
-                                        )}
-                                    </Box>
-                                </AccordionDetails>
-                            </Accordion>
-
-                            <Divider sx={{ my: 3 }} />
-
-                            <Typography variant="subtitle1" gutterBottom>Matched Rules</Typography>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Rule Name</TableCell>
-                                        <TableCell>Priority</TableCell>
-                                        <TableCell>Match Details</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {Array.isArray(testResults.matchedRules) && testResults.matchedRules.length > 0 ? (
-                                        testResults.matchedRules.map((matchResult, index) => (
-                                            <TableRow key={index}>
-                                                <TableCell>{matchResult.rule.Name || 'Unknown'}</TableCell>
-                                                <TableCell>{matchResult.rule.Priority || 0}</TableCell>
-                                                <TableCell>
-                                                    <Accordion>
-                                                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                                            <Typography variant="body2" color="error" fontWeight="bold">{renderMatchSummary(matchResult.result.details)}</Typography>
-                                                        </AccordionSummary>
-                                                        <AccordionDetails>
-                                                            <Box>
-                                                                <Typography variant="subtitle2" gutterBottom>Full Rule Details:</Typography>
-                                                                <Paper variant="outlined" sx={{ p: 1, bgcolor: '#f8f8f8', mb: 2 }}>
-                                                                    <pre style={{ margin: 0, fontSize: '0.875rem' }}>
-                                                                        {JSON.stringify(matchResult.rule, null, 2)}
-                                                                    </pre>
-                                                                </Paper>
-
-                                                                {renderRuleActions(matchResult.result.actions)}
-                                                            </Box>
-                                                        </AccordionDetails>
-                                                    </Accordion>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={4} sx={{ textAlign: 'center' }}>
-                                                No rules were matched by this request.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </Paper>
-                    )
+                    </>
                 )}
-            </Stack>
 
-            {/* Add floating Next Rule button when in step mode and not at the end */}
-            {stepMode && ruleHistory.length > 0 && currentRuleIndex < safeRules.length - 1 && (
-                <Fab
-                    color="primary"
-                    onClick={stepToNextRule}
-                    sx={{
-                        position: 'fixed',
-                        bottom: 20,
-                        right: 30,
-                        zIndex: 1000,
-                        boxShadow: 3
-                    }}
-                >
-                    <NavigateNextIcon />
-                </Fab>
-            )}
-
-            <CustomSnackbar
-                open={snackbar.open}
-                message={snackbar.message}
-                severity={snackbar.severity}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            />
-        </Container>
+                {/* Snackbar for messages */}
+                <CustomSnackbar
+                    open={snackbar.open}
+                    message={snackbar.message}
+                    severity={snackbar.severity}
+                    onClose={handleCloseSnackbar}
+                />
+            </Box>
+        </Box>
     );
 };
 
-export default RequestDebugger; 
+export default RequestDebugger;
