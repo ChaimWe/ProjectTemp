@@ -3,7 +3,7 @@ import './style/RuleDetailsPopup.css';
 import AnalyzedInfoSection from '../../data/AnalyzedInfoSection';
 import { useThemeContext } from '../../context/ThemeContext';
 
-const RuleDetailsPopup = ({ rule, dataArray, centerNode }) => {
+const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat }) => {
   const { getColor } = useThemeContext();
 
   return (
@@ -22,6 +22,13 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode }) => {
       </div>
 
       <AnalyzedInfoSection dataArray={dataArray} rule={rule.id} />
+
+      {/* Chat Assistant Button */}
+      <div style={{ margin: '12px 0' }}>
+        <button onClick={onOpenChat} style={{ padding: '8px 16px', background: getColor('barBackground'), color: getColor('barText'), border: '1px solid #888', borderRadius: 4, cursor: 'pointer' }}>
+          💬 Ask AI about this rule
+        </button>
+      </div>
 
       {(rule.warnings || []).length > 0 && (
         <section className="info-section warnings-section" style={{ backgroundColor: getColor('barBackground') }}>
