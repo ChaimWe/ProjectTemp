@@ -6,12 +6,12 @@ export default class Tree {
         const nodes = [];
         tranformedRulesArray.forEach((rule, i) => {
             nodes.push({
-                id: `${rule.id}`,
+                id: String(i),
                 position: { x: 0, y: 0 },
                 type: 'custom-node',
                 data: {
-                    id: rule.id,
-                    name: rule.name,
+                    id: String(i),
+                    name: rule.name || rule.Name,
                     priority: rule.priority,
                     action: rule.action,
                     ruleLabels: rule.ruleLabels,
@@ -111,7 +111,14 @@ export default class Tree {
             const rowWidth = (row.length - 1) * horizontalSpacing;
             const rowStartX = centerX - rowWidth / 2;
             row.forEach((node, i) => {
-                node.position = { x: rowStartX + i * horizontalSpacing, y };
+                let x = rowStartX + i * horizontalSpacing;
+                let yVal = y;
+                if (isNaN(x) || isNaN(yVal)) {
+                    console.warn('[NodeTransformer] Hierarchical node position is NaN, setting to 0:', { node, x, y: yVal });
+                    x = 0;
+                    yVal = 0;
+                }
+                node.position = { x, y: yVal };
             });
             y += rowGap;
             rowNodes = rowNodes.slice(count);
@@ -158,6 +165,14 @@ export default class Tree {
             y += rowGap;
             rowNodes = rowNodes.slice(count);
         }
+        // Final defensive pass: ensure all node positions are valid numbers
+        nodes.forEach(node => {
+            let x = node.position?.x;
+            let y = node.position?.y;
+            if (typeof x !== 'number' || isNaN(x)) x = 0;
+            if (typeof y !== 'number' || isNaN(y)) y = 0;
+            node.position = { x, y };
+        });
     }
 }
 
@@ -183,13 +198,13 @@ export const transformData = (data) => {
             }
 
             const node = {
-                id: index.toString(),
+                id: String(index),
                 type: 'custom-node',
                 data: { ...rule },
                 position: { x: 0, y: 0 },
             };
             nodes.push(node);
-            nodeMap.set(index.toString(), node);
+            nodeMap.set(String(index), node);
 
             // Collect global warnings
             if (rule.warnings && Array.isArray(rule.warnings)) {
@@ -197,7 +212,7 @@ export const transformData = (data) => {
                     if (warning && typeof warning === 'object') {
                         globalWarnings.push({
                             ...warning,
-                            ruleId: index.toString()
+                            ruleId: String(index)
                         });
                     }
                 });
@@ -222,16 +237,18 @@ export const transformData = (data) => {
                     return;
                 }
 
-                const targetNode = nodeMap.get(dep.toString());
+                // If dep is a number, use as index; if string, try parseInt
+                let depId = typeof dep === 'number' ? String(dep) : String(parseInt(dep));
+                const targetNode = nodeMap.get(depId);
                 if (!targetNode) {
                     console.warn('[NodeTransformer] Missing target node for dependency:', dep);
                     return;
                 }
 
                 edges.push({
-                    id: `${node.id}-${dep}-${depIndex}`,
+                    id: `${node.id}-${depId}-${depIndex}`,
                     source: node.id,
-                    target: dep.toString(),
+                    target: depId,
                 });
             });
         });
@@ -245,10 +262,14 @@ export const transformData = (data) => {
         nodes.forEach((node, index) => {
             const row = Math.floor(index / NODES_PER_ROW);
             const col = index % NODES_PER_ROW;
-            node.position = {
-                x: col * GRID_SIZE,
-                y: row * GRID_SIZE
-            };
+            let x = col * GRID_SIZE;
+            let y = row * GRID_SIZE;
+            if (isNaN(x) || isNaN(y)) {
+                console.warn('[NodeTransformer] Node position is NaN, setting to 0:', { node, x, y });
+                x = 0;
+                y = 0;
+            }
+            node.position = { x, y };
         });
 
         console.log('[NodeTransformer] Positioned nodes in grid layout');

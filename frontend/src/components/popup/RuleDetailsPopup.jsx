@@ -4,12 +4,23 @@ import AnalyzedInfoSection from '../../data/AnalyzedInfoSection';
 import { useThemeContext } from '../../context/ThemeContext';
 
 const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat }) => {
+  if (!rule) {
+    return <div style={{ color: 'red', padding: 16 }}>Error: Rule not found. Please try selecting a different rule.</div>;
+  }
+
   const { getColor } = useThemeContext();
 
   return (
     <div className="rule-popup-content" style={{ backgroundColor: getColor('background'), }}>
       <div className="rule-header">
-        <h2 style={{ color: getColor('barText') }} >{rule.name}</h2>
+        <h2 style={{ color: getColor('barText') }} >Rule #{parseInt(rule.id, 10) + 1}: {rule.name}</h2>
+      </div>
+
+      {/* Chat Assistant Button */}
+      <div style={{ margin: '12px 0' }}>
+        <button onClick={onOpenChat} style={{ padding: '8px 16px', background: getColor('barBackground'), color: getColor('barText'), border: '1px solid #888', borderRadius: 4, cursor: 'pointer' }}>
+          💬 Ask AI about this rule
+        </button>
       </div>
 
       <div className="rule-action">
@@ -22,13 +33,6 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat }) => {
       </div>
 
       <AnalyzedInfoSection dataArray={dataArray} rule={rule.id} />
-
-      {/* Chat Assistant Button */}
-      <div style={{ margin: '12px 0' }}>
-        <button onClick={onOpenChat} style={{ padding: '8px 16px', background: getColor('barBackground'), color: getColor('barText'), border: '1px solid #888', borderRadius: 4, cursor: 'pointer' }}>
-          💬 Ask AI about this rule
-        </button>
-      </div>
 
       {(rule.warnings || []).length > 0 && (
         <section className="info-section warnings-section" style={{ backgroundColor: getColor('barBackground') }}>
@@ -58,7 +62,12 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat }) => {
                 <span>{label}</span> <br />
                 <small key={i} className="rule-reference">
                   {(rules || []).length > 0 ?
-                    (rules || []).map((rule, i) => <><span key={i} onClick={() => centerNode(rule.id)}> → {rule.name}</span><br /></>) :
+                    (rules || []).map((rule, i) => (
+                      <React.Fragment key={`${rule.id || ''}-${rule.name || ''}-${i}`}>
+                        <span onClick={() => centerNode(String(i))}> → Rule #{i+1}: {rule.name}</span>
+                        <br />
+                      </React.Fragment>
+                    )) :
                     <span onClick={() => document.querySelector('.warnings-section').scrollIntoView({ behavior: 'smooth' })}> → ⚠️</span>}
                 </small>
                 <br />

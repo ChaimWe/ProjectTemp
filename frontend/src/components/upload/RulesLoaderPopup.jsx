@@ -12,7 +12,9 @@ import {
   CircularProgress,
   Box,
   Select,
-  MenuItem
+  MenuItem,
+  FormControl,
+  InputLabel
 } from "@mui/material";
 import UploadJsonButton from "./UploadJsonButton";
 import { fetchAclDetail, fetchAclsNames } from './api';
@@ -105,70 +107,60 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
         </Box>
       );
     }
-
-    if (step === "initial") {
-      return (
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 2,
-            alignItems: "center",
-            mt: 2
-          }}
-        >
-          <Button variant="contained" onClick={handleFetchFromServer} style={{ width: '200px' }}>
-            Fetch from Server
-          </Button>
-          <UploadJsonButton onJsonUpload={handleJsonUpload} />
-        </Box>
-      );
-    } else if (step === "regionSelection") {
-      return (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}>
-          <DialogTitle>Select Region</DialogTitle>
-          <Select
-            value={selectedRegion}
-            onChange={(e) => setSelectedRegion(e.target.value)}
-            displayEmpty
-            fullWidth
-          >
-            <MenuItem value="" disabled>
-              Select Region
-            </MenuItem>
-            {regions.map((region) => (
-              <MenuItem key={region.code} value={region.code}>
-                {region.name}
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', mt: 2 }}>
+        {step === "initial" && (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center", mt: 2 }}>
+            <Button variant="contained" onClick={handleFetchFromServer} style={{ width: '200px' }}>
+              Fetch from Server
+            </Button>
+            <UploadJsonButton onJsonUpload={handleJsonUpload} />
+          </Box>
+        )}
+        {step === "regionSelection" && (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}>
+            <DialogTitle>Select Region</DialogTitle>
+            <Select
+              value={selectedRegion}
+              onChange={(e) => setSelectedRegion(e.target.value)}
+              displayEmpty
+              fullWidth
+            >
+              <MenuItem value="" disabled>
+                Select Region
               </MenuItem>
-            ))}
-          </Select>
-          <Button
-            variant="contained"
-            onClick={() => handleRegionSelect(selectedRegion)}
-            disabled={!selectedRegion}
-            fullWidth
-          >
-            Select
-          </Button>
-        </Box>
-      );
-    } else if (step === "aclSelection") {
-      return (
-        <Box>
-          <DialogTitle textAlign={'center'}>Select ACL</DialogTitle>
-          <List>
-            {aclNames.length > 0 ? aclNames.map((acl) => (
-              <ListItem key={acl} disablePadding>
-                <ListItemButton onClick={() => handleAclSelect(acl)}>
-                  <ListItemText primary={acl} />
-                </ListItemButton>
-              </ListItem>
-            )) : <ListItem><ListItemText style={{ textAlign: 'center' }} primary="No ACLs found" /></ListItem>}
-          </List>
-        </Box>
-      );
-    }
-    return null;
+              {regions.map((region) => (
+                <MenuItem key={region.code} value={region.code}>
+                  {region.name}
+                </MenuItem>
+              ))}
+            </Select>
+            <Button
+              variant="contained"
+              onClick={() => handleRegionSelect(selectedRegion)}
+              disabled={!selectedRegion}
+              fullWidth
+            >
+              Select
+            </Button>
+          </Box>
+        )}
+        {step === "aclSelection" && (
+          <Box>
+            <DialogTitle textAlign={'center'}>Select ACL</DialogTitle>
+            <List>
+              {aclNames.length > 0 ? aclNames.map((acl) => (
+                <ListItem key={acl} disablePadding>
+                  <ListItemButton onClick={() => handleAclSelect(acl)}>
+                    <ListItemText primary={acl} />
+                  </ListItemButton>
+                </ListItem>
+              )) : <ListItem><ListItemText style={{ textAlign: 'center' }} primary="No ACLs found" /></ListItem>}
+            </List>
+          </Box>
+        )}
+      </Box>
+    );
   };
 
   return (

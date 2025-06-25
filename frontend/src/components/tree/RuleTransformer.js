@@ -28,7 +28,7 @@ export default class RuleTransformer {
 
         const transformedRule = {
           json: JSON.stringify(rule, null, 2),
-          id: index,
+          id: String(index),
           name: rule.Name,
           priority: rule.Priority,
           action: rule.Action ? Object.keys(rule.Action)[0] : Object.keys(rule.OverrideAction)[0],
@@ -43,9 +43,10 @@ export default class RuleTransformer {
       });
 
       console.log('[RuleTransformer] Transformation complete:', newRules.length, 'nodes processed');
+      console.log('[DEBUG] All edges created:', this.links);
       return {
-        nodes: newRules.map((rule, idx) => ({
-          id: rule.id.toString(),
+        nodes: newRules.map((rule, index) => ({
+          id: String(index),
           type: 'custom-node',
           data: rule,
           // position will be assigned later if missing
@@ -122,24 +123,28 @@ export default class RuleTransformer {
       return [];
     }
 
+    const currentRuleName = [...this.rulesArray][currentIndex].Name;
     return matchingRules.map(rule => {
       if (rule.level === this.level) this.level++;
-      if (['ALLOW', 'BLOCK'].includes(rule.action)) {
+      if (["ALLOW", "BLOCK"].includes(rule.action)) {
         this.warnings.push(`Label '${name}' is created in a terminal rule (${rule.action}) - this may affect rule evaluation`);
       }
+      const sourceId = String(rules.indexOf(rule));
+      const targetId = String(currentIndex);
+      console.log(`[DEBUG] Creating edge: source=${sourceId} (${rule.name}), target=${targetId} (${currentRuleName}), label=${name}`);
       this.links.push({
-        id: `edge-${rule.id}-${currentIndex}-${Date.now()}`,
-        source: `${rule.id}`,
-        target: `${currentIndex}`
+        id: `edge-${sourceId}-${targetId}-${Date.now()}`,
+        source: sourceId,
+        target: targetId
       });
-      return { name: rule.name, id: rule.id };
+      return { name: rule.name, id: sourceId };
     });
   }
 
   collectWarnings(rules) {
     return rules
       .filter(rule => rule.warnings.length > 0)
-      .map(rule => ({ id: rule.id, rule: rule.name, warnings: rule.warnings }));
+      .map((rule, index) => ({ id: String(index), rule: rule.name, warnings: rule.warnings }));
   }
 }
 
@@ -191,3 +196,19 @@ export const transformRules = (data) => {
         return null;
     }
 };
+
+// Optional utility to print all parent/child relationships for debugging
+export function printRuleRelationships(rules, edges) {
+  if (!Array.isArray(rules) || !Array.isArray(edges)) {
+    console.warn('printRuleRelationships: Invalid input');
+    return;
+  }
+  rules.forEach(rule => {
+    const ruleId = rule.name || rule.Name;
+    const parentIds = edges.filter(e => e.target === ruleId).map(e => e.source);
+    const childIds = edges.filter(e => e.source === ruleId).map(e => e.target);
+    const parentNames = rules.filter(r => parentIds.includes(r.name || r.Name)).map(r => r.name || r.Name);
+    const childNames = rules.filter(r => childIds.includes(r.name || r.Name)).map(r => r.name || r.Name);
+    console.log(`Rule: ${ruleId}\n  Parents: ${parentNames.join(', ') || 'None'}\n  Children: ${childNames.join(', ') || 'None'}`);
+  });
+}

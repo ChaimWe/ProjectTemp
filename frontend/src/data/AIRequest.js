@@ -1,13 +1,24 @@
 import OpenAI from 'openai';
 
-const systemPrompt =
-  `Role: You are an expert in AWS WAF rules and AI Engineering. 
+const styleInstructions = {
+  concise: 'Summarize each rule briefly.',
+  detailed: 'Provide a detailed, step-by-step explanation for each rule.',
+  table: 'Present the rules in a markdown table.',
+  bullet: 'List each rule as bullet points.',
+  human: 'Explain the rules in simple, non-technical language.',
+  json: 'Return only a JSON object as specified.'
+};
+
+export const analyzeWafRules = async (wafRules, responseStyle = 'concise') => {
+  const styleInstruction = styleInstructions[responseStyle] || styleInstructions.concise;
+  const systemPrompt =
+    `Role: You are an expert in AWS WAF rules and AI Engineering. 
 You are also a world-winning prize software engineer specializing in LLM models.
 
 Action: Your task is to extract key details from a set of AWS WAF rules.
 For each rule, return a JSON object containing:
   - "Type": The type of rule (e.g., ByteMatchStatement, RateBasedStatement, etc.).
-  - "Condition": A human-readable explanation of the rule’s effect.
+  - "Condition": A human-readable explanation of the rule's effect.
 
 Context: The input is a JSON structure representing AWS WAF rules.
 Each rule has a "Statement" key that contains the rule logic.
@@ -18,6 +29,8 @@ Execution: Follow these steps:
   2. Generate a brief but informative description of what the rule does.
   3. Always return a JSON response, even if no valid rule is found.
   4. Ensure the JSON output always includes "Type" and "Condition".
+
+Additional Instruction: ${styleInstruction}
 
 Example Output:
 {
@@ -32,8 +45,6 @@ Example Output:
     }
   ]
 }`;
-
-export const analyzeWafRules = async (wafRules) => {
 
   const openai = new OpenAI({
     apiKey: import.meta.env.VITE_REACT_APP_OPENAI_API_KEY,

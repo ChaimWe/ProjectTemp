@@ -1,4 +1,3 @@
-console.log('!!! WAFView.jsx loaded !!!');
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import { ReactFlowProvider } from 'reactflow';
@@ -16,6 +15,7 @@ import jsPDF from 'jspdf';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useThemeContext } from '../../context/ThemeContext';
+import getAnalyzedData from '../../data/getAnalyzedData';
 
 /**
  * WAFView component manages the main visualization and data transformation for WAF rules.
@@ -38,7 +38,6 @@ const WAFView = ({
   dottedLines,
   animatedLines
 }) => {
-    console.log('[WAFView] Render - data:', data);
     const { darkTheme } = useThemeContext();
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -51,20 +50,21 @@ const WAFView = ({
     });
     const [graphData, setGraphData] = useState(null);
     const [popupData, setPopupData] = useState(null);
+    const [originalRules, setOriginalRules] = useState([]); // Store full AWS WAF rules
+    const [aiSummary, setAiSummary] = useState([]); // Store AI summary (Type, Condition)
+    const [responseStyle, setResponseStyle] = useState('concise');
 
     /**
      * Effect: Transforms incoming data into graphData and popupData for visualization.
      */
     useEffect(() => {
-        if (!data) {
+        if (!originalRules || originalRules.length === 0) {
             setGraphData(null);
             setPopupData(null);
             return;
         }
         try {
-            console.log('[WAFView] Computing transformed data');
-            const transformedData = transformData(data);
-            console.log('[WAFView] Data transformed:', transformedData);
+            const transformedData = transformData(originalRules);
             if (!transformedData || !transformedData.nodes) {
                 setGraphData(null);
                 setPopupData(null);
@@ -100,10 +100,6 @@ const WAFView = ({
                 nodes: ruleTransformed.nodes,
                 globalWarnings: ruleTransformed.globalWarnings
             });
-            console.log('[WAFView] Final transformed result:',
-                'nodes:', ruleTransformed.nodes?.length,
-                'edges:', ruleTransformed.edges?.length
-            );
             // Set warning count in AppLayout
             if (setWarningCount) {
                 setWarningCount(ruleTransformed.globalWarnings?.length || 0);
@@ -111,28 +107,13 @@ const WAFView = ({
         } catch (error) {
             setGraphData(null);
             setPopupData(null);
-            console.error('[WAFView] Error transforming data:', error);
         }
-    }, [data, setWarningCount]);
-
-    // Log state changes
-    useEffect(() => {
-        console.log('[WAFView] graphData changed:', graphData);
-    }, [graphData]);
-
-    useEffect(() => {
-        console.log('[WAFView] popupData changed:', popupData);
-    }, [popupData]);
-
-    useEffect(() => {
-        console.log('[WAFView] loaderPopupOpen changed:', loaderPopupOpen);
-    }, [loaderPopupOpen]);
+    }, [originalRules, setWarningCount]);
 
     /**
      * Handles node selection and opens the rule popup.
      */
     const handleNodeClick = useCallback((nodeId) => {
-        console.log('[WAFView] handleNodeClick:', nodeId);
         setSelectedNode(nodeId);
         if (nodeId !== null) {
             setRulePopupOpen(true);
@@ -144,7 +125,6 @@ const WAFView = ({
      * Centers the view on a specific node in the flowchart.
      */
     const centerNode = useCallback((nodeId) => {
-        console.log('[WAFView] centerNode called with:', nodeId);
         if (flowRef.current) {
             const { x, y } = flowRef.current.getNode(nodeId).position;
             flowRef.current.setCenter(x, y, { duration: 800 });
@@ -154,26 +134,33 @@ const WAFView = ({
     /**
      * Handles rules received from the loader popup and normalizes them.
      */
-    const handleRulesReceived = useCallback((rulesData) => {
-        console.log('[WAFView] --- handleRulesReceived DEBUG PATCH ACTIVE ---');
+    const handleRulesReceived = useCallback(async (rulesData, style = responseStyle) => {
         if (typeof rulesData === 'string') {
             try {
-                console.log('[WAFView] Parsing rulesData from string');
                 rulesData = JSON.parse(rulesData);
             } catch (e) {
-                console.error('[WAFView] Failed to parse rulesData string:', e);
                 return;
             }
         }
         const normalized = normalizeRulesData(rulesData);
         if (!Array.isArray(normalized)) {
-            console.error('[WAFView] Invalid rules data received (not an array after normalization)');
             return;
         }
-        setData(normalized);
-    }, [setData]);
+        // Call getAnalyzedData with the selected response style
+        const analyzed = await getAnalyzedData(normalized, style);
+        setOriginalRules(normalized); // Store the full rules for graph logic
+        setAiSummary(analyzed.rules || []); // Store the AI summary for display
+        setData(normalized); // Optionally keep for compatibility
+        setResponseStyle(style); // Save the style for future loads
+    }, [setData, responseStyle]);
 
-    console.log('[WAFView] Render - graphData:', graphData, 'popupData:', popupData);
+    // Handler to update AI style and re-fetch summary
+    const handleChangeAiStyle = async (newStyle) => {
+        if (!originalRules || !Array.isArray(originalRules)) return;
+        const analyzed = await getAnalyzedData(originalRules, newStyle);
+        setAiSummary(analyzed.rules || []);
+        setResponseStyle(newStyle);
+    };
 
     return (
         <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', overflow: 'hidden' }}>
@@ -229,7 +216,7 @@ const WAFView = ({
             {rulePopupOpen && popupData && (
                 <RulePopup
                     backTo={backTo}
-                    dataArray={data}
+                    dataArray={popupData.nodes.map(n => n.data)}
                     selectedNode={popupData.nodes[+selectedNode]}
                     centerNode={centerNode}
                     onClose={() => {
@@ -240,6 +227,10 @@ const WAFView = ({
                         setRulePopupOpen(false);
                         setBackTo(null);
                     }}
+                    aiSummary={aiSummary}
+                    responseStyle={responseStyle}
+                    onChangeStyle={handleChangeAiStyle}
+                    edges={graphData ? graphData.edges : []}
                 />
             )}
             {warningsPopupOpen && popupData && (
@@ -257,10 +248,7 @@ const WAFView = ({
             {/* Loader Popup for loading rules */}
             <RulesLoaderPopup
                 open={loaderPopupOpen}
-                onRulesReceived={(rules) => {
-                    setData(rules);
-                    setLoaderPopupOpen(false);
-                }}
+                onRulesReceived={handleRulesReceived}
                 onClose={() => setLoaderPopupOpen(false)}
             />
         </Box>

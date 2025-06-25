@@ -27,8 +27,6 @@ const nodeTypes = {
  * Handles node/edge selection, search, and visual styles for edges and nodes.
  */
 const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNode, searchTerm, showArrows, setShowArrows, dottedLines, animatedLines }, ref) => {
-    console.log('[FlowChart] Render - allNodes:', allNodes, 'allEdges:', allEdges, 'selectedNode:', selectedNode);
-
     const [nodes, setNodes] = useState([]);
     const [edges, setEdges] = useState([]);
     const [highlightedEdges, setHighlightedEdges] = useState(new Set());
@@ -46,7 +44,6 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
      * Initializes the nodes and edges state from props.
      */
     const initializeData = useCallback((nodes, edges) => {
-        console.log('[FlowChart] Initializing data with nodes:', nodes?.length, 'edges:', edges?.length);
         if (nodes?.length > 0 && edges?.length >= 0) {
             setNodes(nodes);
             setEdges(edges);
@@ -58,11 +55,7 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
 
     // Handle data initialization and updates
     useEffect(() => {
-        console.log('[FlowChart] allNodes/allEdges changed - allNodes:', allNodes?.length, 'allEdges:', allEdges?.length);
-        
-        // Reset state if data is cleared
         if (!allNodes?.length) {
-            console.log('[FlowChart] Resetting state due to missing data');
             setIsInitialized(false);
             setNodes([]);
             setEdges([]);
@@ -74,7 +67,6 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
 
         // Initialize or update data
         const success = initializeData(allNodes, allEdges);
-        console.log('[FlowChart] Data initialization result:', success);
     }, [allNodes, allEdges, initializeData]);
 
     /**
@@ -83,9 +75,7 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
     useEffect(() => {
         if (!isInitialized) return;
 
-        console.log('[FlowChart] searchTerm changed:', searchTerm);
         if (!searchTerm) {
-            console.log('[FlowChart] Clearing blurred nodes');
             setBlurredNodes(new Set());
             return;
         }
@@ -95,16 +85,13 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
             allNodes.filter(node => !JSON.stringify(node.data).toLowerCase().includes(lowerSearch))
                     .map(node => node.id)
         );
-        console.log('[FlowChart] Setting blurred nodes:', nodesToBlur);
         setBlurredNodes(nodesToBlur);
     }, [searchTerm, allNodes, isInitialized]);
 
     const connectedNode = useCallback((id) => {
-        console.log('[FlowChart] connectedNode called with:', id);
         const connectedEdges = edges.filter(edge =>
             edge.source === id || edge.target === id
         );
-        console.log('[FlowChart] connectedEdges found:', connectedEdges);
         setHighlightedEdges(new Set(connectedEdges.map(edge => edge.id)));
     }, [edges]);
 
@@ -112,25 +99,21 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
      * Returns the set of node IDs directly connected to a given node.
      */
     const getDirectlyConnectedNodeIds = useCallback((nodeId) => {
-        console.log('[FlowChart] getDirectlyConnectedNodeIds called with:', nodeId);
         const connected = new Set();
         edges.forEach(edge => {
             if (edge.source === nodeId) connected.add(edge.target);
             if (edge.target === nodeId) connected.add(edge.source);
         });
-        console.log('[FlowChart] directly connected nodes:', connected);
         return connected;
     }, [edges]);
 
     const onNodeMouseEnter = useCallback((_, node) => {
-        console.log('[FlowChart] onNodeMouseEnter:', node.id);
         if (!selectedNode && !doubleClickedNode) {
             connectedNode(node.id);
         }
     }, [selectedNode, doubleClickedNode, connectedNode]);
 
     const onNodeMouseLeave = useCallback(() => {
-        console.log('[FlowChart] onNodeMouseLeave');
         if (!selectedNode && !doubleClickedNode) {
             setHighlightedEdges(new Set());
         }
@@ -140,14 +123,11 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
      * Handles node click events for selection and highlighting.
      */
     const onNodeClick = useCallback((_, node) => {
-        console.log('[FlowChart] onNodeClick:', node.id, 'current selectedNode:', selectedNode);
         if (selectedNode === node.id) {
-            console.log('[FlowChart] Deselecting node');
             setSelectedNode(null);
             setHighlightedEdges(new Set());
             setConnectedNodeIds(new Set());
         } else {
-            console.log('[FlowChart] Selecting node');
             setSelectedNode(node.id);
             const connectedIds = getDirectlyConnectedNodeIds(node.id);
             setConnectedNodeIds(connectedIds);
@@ -182,14 +162,11 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
      * Handles double-click events to highlight dependencies.
      */
     const onNodeDoubleClick = useCallback((_, node) => {
-        console.log('[FlowChart] onNodeDoubleClick:', node.id);
         if (doubleClickedNode === node.id) {
-            console.log('[FlowChart] Clearing double click selection');
             setDoubleClickedNode(null);
             setBlurredNodes(new Set());
             setHighlightedEdges(new Set());
         } else {
-            console.log('[FlowChart] Setting double click selection');
             const upward = findUpwardDependencies(node.id);
             const downward = findDownwardDependencies(node.id);
             const relatedNodes = new Set([...upward, ...downward, node.id]);
@@ -215,7 +192,6 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
     }, [doubleClickedNode, nodes, edges, findUpwardDependencies, findDownwardDependencies, setSelectedNode]);
 
     const onInit = useCallback((instance) => {
-        console.log('[FlowChart] onInit called with instance:', instance);
     }, []);
 
     // Deduplicate nodes by ID
@@ -232,7 +208,12 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
     const nodesWithOffset = useMemo(() => {
         const posMap = new Map();
         return dedupedNodes.map(n => {
-            const key = `${n.position.x},${n.position.y}`;
+            // Validate position values
+            let x = n.position?.x;
+            let y = n.position?.y;
+            if (typeof x !== 'number' || isNaN(x)) x = 0;
+            if (typeof y !== 'number' || isNaN(y)) y = 0;
+            const key = `${x},${y}`;
             if (posMap.has(key)) {
                 // Add a small offset if position is already taken
                 const count = posMap.get(key) + 1;
@@ -240,13 +221,16 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
                 return {
                     ...n,
                     position: {
-                        x: n.position.x + Math.random() * 10 * count,
-                        y: n.position.y + Math.random() * 10 * count
+                        x: x + Math.random() * 10 * count,
+                        y: y + Math.random() * 10 * count
                     }
                 };
             } else {
                 posMap.set(key, 1);
-                return n;
+                return {
+                    ...n,
+                    position: { x, y }
+                };
             }
         });
     }, [dedupedNodes]);
@@ -311,23 +295,10 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
             };
         });
 
-    console.log('[FlowChart] Render - nodesWithStyles:', nodesWithStyles.length, 'edgesWithStyles:', edgesWithStyles.length, 'isInitialized:', isInitialized);
-
-    // Debug: Log node positions
-    if (nodesWithStyles.length > 0) {
-        const positions = nodesWithStyles.map(n => n.position);
-        console.log('[FlowChart] Node positions:', positions);
-        const outOfBounds = positions.filter(pos => !pos || pos.x < 0 || pos.y < 0 || pos.x > 2000 || pos.y > 2000);
-        if (outOfBounds.length > 0) {
-            console.warn('[FlowChart] WARNING: Some node positions are out of visible area:', outOfBounds);
-        }
-    }
-
     // Only keep the raster PDF export using html2canvas
     const handleExportPdf = useCallback((afterExportCallback) => {
         const flowElement = document.querySelector('.react-flow');
         if (!flowElement) {
-            alert('Could not find the graph area to export.');
             if (afterExportCallback) afterExportCallback();
             return;
         }
@@ -358,7 +329,6 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
                 pdf.save('waf-graph.pdf');
                 if (afterExportCallback) afterExportCallback();
             }).catch(err => {
-                alert('Failed to export PDF.');
                 if (afterExportCallback) afterExportCallback();
             });
         }, 100); // 100ms delay to ensure DOM is ready
@@ -389,17 +359,9 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
         opacity: 1,
     }), [darkTheme, edgeStyles]);
 
-    if (!allNodes?.length) {
-        console.log('[FlowChart] No data to render, showing waiting message');
-        return <div style={{ color: '#aaa', padding: 20 }}>Waiting for data to render flowchart…</div>;
+    if (!allNodes?.length || nodesWithStyles.length === 0) {
+        return <div style={{ color: '#aaa', padding: 20 }}>No nodes to display. Please load or add rules to see the flowchart.</div>;
     }
-
-    if (!isInitialized || nodes.length === 0) {
-        console.log('[FlowChart] Not initialized or no nodes, showing loading message');
-        return <div style={{ color: '#aaa', padding: 20 }}>Loading flowchart...</div>;
-    }
-
-    console.log('[FlowChart] Rendering ReactFlow with', nodesWithStyles.length, 'nodes and', edgesWithStyles.length, 'edges');
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -427,30 +389,33 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
                     style: edgeStyles,
                 }}
             >
-                <Background
-                    color={darkTheme ? '#666' : '#aaa'}
-                    gap={16}
-                    size={1}
-                    style={{
-                        backgroundColor: 'transparent',
-                        opacity: 0.2
-                    }}
-                />
-                <Controls
-                    style={{
-                        backgroundColor: darkTheme ? 'rgba(51, 51, 51, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                        borderColor: darkTheme ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                        button: {
-                            backgroundColor: darkTheme ? 'rgba(68, 68, 68, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                            color: darkTheme ? '#fff' : '#333',
-                            border: 'none',
-                            '&:hover': {
-                                backgroundColor: darkTheme ? 'rgba(85, 85, 85, 0.9)' : 'rgba(240, 240, 240, 0.9)',
+                <>
+                    <Background
+                        variant="dots"
+                        color={darkTheme ? '#666' : '#aaa'}
+                        gap={16}
+                        size={1}
+                        style={{
+                            backgroundColor: 'transparent',
+                            opacity: 0.2
+                        }}
+                    />
+                    <Controls
+                        style={{
+                            backgroundColor: darkTheme ? 'rgba(51, 51, 51, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                            borderColor: darkTheme ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            button: {
+                                backgroundColor: darkTheme ? 'rgba(68, 68, 68, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                                color: darkTheme ? '#fff' : '#333',
+                                border: 'none',
+                                '&:hover': {
+                                    backgroundColor: darkTheme ? 'rgba(85, 85, 85, 0.9)' : 'rgba(240, 240, 240, 0.9)',
+                                },
                             },
-                        },
-                    }}
-                />
+                        }}
+                    />
+                </>
             </ReactFlow>
         </div>
     );

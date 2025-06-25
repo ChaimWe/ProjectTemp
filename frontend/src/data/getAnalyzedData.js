@@ -1,6 +1,6 @@
 import { analyzeWafRules } from "./AIRequest";
 
-export default async function getAnalyzedData(dataArray) {
+export default async function getAnalyzedData(dataArray, responseStyle = 'concise') {
     if (!dataArray || !Array.isArray(dataArray)) {
         throw new Error('Invalid input: dataArray must be an array');
     }
@@ -13,7 +13,7 @@ export default async function getAnalyzedData(dataArray) {
             return JSON.parse(cachedData);
         }
 
-        const response = await analyzeWafRules(dataArray);
+        const response = await analyzeWafRules(dataArray, responseStyle);
         if (response.error) {
             return { rules: [] };
         }
