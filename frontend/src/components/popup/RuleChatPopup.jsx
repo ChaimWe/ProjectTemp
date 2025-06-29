@@ -64,6 +64,7 @@ function renderJsonBlock(text) {
 
 const RuleChatPopup = ({ rule, allRules, edges = [], onClose }) => {
   const { getColor } = useThemeContext();
+  
   const [messages, setMessages] = useState([
     { sender: 'ai', text: 'Hi! Ask me anything about this rule and I will help you understand or improve it.' }
   ]);
@@ -73,23 +74,16 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose }) => {
   const [seeAllRules, setSeeAllRules] = useState(false);
 
   // Compute parent and child rules for the current rule
-  const ruleId = rule.id || '';
-  const parentIds = edges.filter(e => e.target === ruleId).map(e => e.source);
-  const childIds = edges.filter(e => e.source === ruleId).map(e => e.target);
-  const parentRules = (allRules || []).filter(r => parentIds.includes(String(r.id).trim()));
-  const childRules = (allRules || []).filter(r => childIds.includes(String(r.id).trim()));
-  const parentNames = parentRules.map(r => r.name).join(', ') || 'None';
-  const childNames = childRules.map(r => r.name).join(', ') || 'None';
-
-  useEffect(() => {
-    console.log('RuleChatPopup Debug:', {
-      ruleId,
-      parentNames,
-      childNames,
-      edgeCount: edges.length,
-      ruleCount: (allRules || []).length
-    });
-  }, [ruleId, parentNames, childNames, edges, allRules]);
+  const ruleId = String(rule.id || '');
+  const parentIds = edges.filter(e => String(e.target) === ruleId).map(e => String(e.source));
+  const childIds = edges.filter(e => String(e.source) === ruleId).map(e => String(e.target));
+  
+  // Match rules by their position in the array (since edges use array indices as IDs)
+  const parentRules = (allRules || []).filter((r, index) => parentIds.includes(String(index)));
+  const childRules = (allRules || []).filter((r, index) => childIds.includes(String(index)));
+  
+  const parentNames = parentRules.map(r => r.Name).join(', ') || 'None';
+  const childNames = childRules.map(r => r.Name).join(', ') || 'None';
 
   const sendMessage = async () => {
     if (!input.trim()) return;

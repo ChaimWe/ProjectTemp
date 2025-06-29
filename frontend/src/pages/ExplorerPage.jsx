@@ -13,7 +13,6 @@ import { useThemeContext } from '../context/ThemeContext';
  * Passes context and handlers to WAFView and RequestDebugger.
  */
 export default function ExplorerPage() {
-  const [view, setView] = useState('tree');
   const [searchTerm, setSearchTerm] = useState('');
   const [warningCount, setWarningCountLocal] = useState(0);
   const { darkTheme } = useThemeContext();
@@ -34,8 +33,19 @@ export default function ExplorerPage() {
     setData,
     handleExportVectorPdf,
     showArrows,
+    setShowArrows,
     dottedLines,
-    animatedLines
+    setDottedLines,
+    animatedLines,
+    setAnimatedLines,
+    viewType,
+    setViewType,
+    treeSetup,
+    setTreeSetup,
+    orderBy,
+    setOrderBy,
+    treeStyle,
+    setTreeStyle
   } = useOutletContext();
 
   // Debug logging
@@ -44,8 +54,10 @@ export default function ExplorerPage() {
   }, [data]);
 
   useEffect(() => {
-    console.log('[ExplorerPage] View changed:', view);
-  }, [view]);
+    console.log('[ExplorerPage] View changed:', viewType);
+  }, [viewType]);
+
+  console.log('[ExplorerPage] treeStyle prop:', treeStyle);
 
   /**
    * Handles setting and normalizing new data for the app.
@@ -64,7 +76,7 @@ export default function ExplorerPage() {
     setLoaderPopupOpen(false);
   };
 
-  console.log('[ExplorerPage] Render - view:', view, 'data:', data);
+  console.log('[ExplorerPage] Render - view:', viewType, 'data:', data);
   
   return (
     <div style={{ ...styles.mainContainer, position: 'relative' }}>
@@ -82,37 +94,36 @@ export default function ExplorerPage() {
         }} />
       )}
       <Box sx={{ display: 'flex', width: '100vw', height: '100vh', pt: '70px', background: 'transparent', position: 'relative', zIndex: 1 }}>
-        <Sidebar view={view} setView={setView} />
+        <Sidebar view={viewType} setView={() => {}} />
         <Box sx={{ flex: 1, overflow: 'auto' }}>
-          {view === 'tree' && (
-            <WAFView
-              data={data}
-              setData={handleSetData}
-              exportToPdf={exportToPdf}
-              exportToImage={exportToImage}
-              handleWarnings={handleWarnings}
-              setWarningCount={setWarningCount}
-              warningsPopupOpen={warningsPopupOpen}
-              setWarningsPopupOpen={setWarningsPopupOpen}
-              flowRef={flowRef}
-              loaderPopupOpen={loaderPopupOpen}
-              setLoaderPopupOpen={setLoaderPopupOpen}
-              handleExportVectorPdf={handleExportVectorPdf}
-              showArrows={showArrows}
-              dottedLines={dottedLines}
-              animatedLines={animatedLines}
-            />
-          )}
-          {view === 'debugger' && (
-            <>
-              {console.log('[ExplorerPage] Debug - Raw data:', data)}
-              {console.log('[ExplorerPage] Debug - Normalized data:', normalizeRulesData(data))}
-              <RequestDebugger 
-                key={`debugger-${normalizeRulesData(data)?.length || 0}`} 
-                rules={normalizeRulesData(data)} 
-              />
-            </>
-          )}
+          <WAFView
+            data={data}
+            setData={handleSetData}
+            exportToPdf={exportToPdf}
+            exportToImage={exportToImage}
+            handleWarnings={handleWarnings}
+            setWarningCount={setWarningCount}
+            warningsPopupOpen={warningsPopupOpen}
+            setWarningsPopupOpen={setWarningsPopupOpen}
+            flowRef={flowRef}
+            loaderPopupOpen={loaderPopupOpen}
+            setLoaderPopupOpen={setLoaderPopupOpen}
+            handleExportVectorPdf={handleExportVectorPdf}
+            showArrows={showArrows}
+            setShowArrows={setShowArrows}
+            dottedLines={dottedLines}
+            setDottedLines={setDottedLines}
+            animatedLines={animatedLines}
+            setAnimatedLines={setAnimatedLines}
+            viewType={viewType}
+            setViewType={setViewType}
+            treeSetup={treeSetup}
+            setTreeSetup={setTreeSetup}
+            orderBy={orderBy}
+            setOrderBy={setOrderBy}
+            treeStyle={treeStyle}
+            setTreeStyle={setTreeStyle}
+          />
         </Box>
       </Box>
     </div>

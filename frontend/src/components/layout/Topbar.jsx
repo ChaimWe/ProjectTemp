@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AppBar, Box, TextField, Button, Typography, Stack, Divider, Tooltip } from '@mui/material';
 import { useThemeContext } from '../../context/ThemeContext';
 import IconButton from '@mui/material/IconButton';
@@ -13,6 +13,13 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import LinearScaleIcon from '@mui/icons-material/LinearScale';
 import RemoveIcon from '@mui/icons-material/Remove';
 import WavesIcon from '@mui/icons-material/Waves';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import SearchIcon from '@mui/icons-material/Search';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 /**
  * TopBar component renders the top navigation bar with search, toggles, and action buttons.
@@ -36,7 +43,18 @@ const TopBar = ({
     dottedLines,
     setDottedLines,
     animatedLines,
-    setAnimatedLines
+    setAnimatedLines,
+    viewType,
+    setViewType,
+    treeSetup,
+    setTreeSetup,
+    orderBy,
+    setOrderBy,
+    rules,
+    treeStyle,
+    setTreeStyle,
+    orderDirection,
+    setOrderDirection
 }) => {
     console.log('[TopBar] Render with props:', {
         searchTerm,
@@ -44,7 +62,29 @@ const TopBar = ({
         warningCount
     });
 
-    const { darkTheme } = useThemeContext();
+    const { darkTheme, setDarkTheme } = useThemeContext();
+    const [searchOpen, setSearchOpen] = useState(false);
+    const searchRef = useRef();
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (searchRef.current && !searchRef.current.contains(event.target)) {
+                setSearchOpen(false);
+            }
+        }
+        if (searchOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [searchOpen]);
+
+    // Dynamically generate order options from rules, fallback to default
+    let orderOptions = ['Name', 'Priority', 'Statement', 'Action'];
+    if (rules && Array.isArray(rules) && rules.length > 0) {
+        orderOptions = Object.keys(rules[0]);
+    }
 
     /**
      * Handles the click event for the file load button.
@@ -124,138 +164,157 @@ const TopBar = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '8px 16px',
+                    padding: { xs: '4px 4px', sm: '8px 16px' },
+                    flexWrap: 'wrap',
+                    gap: 1,
+                    minHeight: 64,
                 }}
             >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="h6" sx={{ fontSize: '1.1rem', color: 'inherit' }}>
-                        {aclDetails?.aclName || 'WAF Rules'} {/* Fallback text if aclDetails is null */}
+                <Stack direction="row" alignItems="center" spacing={1} divider={<Divider orientation="vertical" flexItem />} sx={{ flex: 1, flexWrap: 'wrap', gap: 1 }}>
+                    {/* Group 1: Title and dropdowns */}
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="h6" sx={{ fontSize: '1.1rem', color: 'inherit', minWidth: 120 }}>
+                            {aclDetails?.aclName || 'WAF Rules'}
                     </Typography>
-                    <TextField
+                        <Select
                         size="small"
-                        placeholder="Search..."
-                        value={searchTerm}
-                        onChange={handleSearchChange}
+                            value={viewType}
+                            onChange={e => setViewType(e.target.value)}
                         sx={{
-                            width: '200px',
-                            '& .MuiOutlinedInput-root': {
-                                backgroundColor: darkTheme ? 'rgba(68, 68, 68, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                                minWidth: 110,
+                                background: darkTheme ? '#222' : '#fff',
                                 color: darkTheme ? '#fff' : '#333',
-                                '& fieldset': {
-                                    borderColor: darkTheme ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                                border: darkTheme ? '1px solid #444' : '1px solid #ccc',
+                                '.MuiOutlinedInput-notchedOutline': {
+                                    borderColor: darkTheme ? '#444' : '#ccc',
                                 },
-                                '&:hover fieldset': {
-                                    borderColor: darkTheme ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                                '& .MuiSvgIcon-root': {
+                                    color: darkTheme ? '#fff' : '#333',
                                 },
-                                '&.Mui-focused fieldset': {
-                                    borderColor: darkTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
-                                },
-                            },
-                            '& .MuiInputBase-input::placeholder': {
-                                color: darkTheme ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
-                            },
-                        }}
-                    />
-                    <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: darkTheme ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }} />
-                    <Tooltip title={showArrows ? "Hide Arrows" : "Show Arrows"}>
-                        <IconButton
-                            onClick={() => setShowArrows(!showArrows)}
-                            sx={{
-                                color: darkTheme ? '#fff' : '#666',
-                                '&:hover': { color: darkTheme ? '#ccc' : '#333' },
                             }}
                         >
+                            <MenuItem value="tree">Tree</MenuItem>
+                            <MenuItem value="table">Table</MenuItem>
+                            <MenuItem value="card">Card</MenuItem>
+                        </Select>
+                        {viewType === 'tree' && (
+                            <Select
+                                size="small"
+                                value={treeStyle}
+                                onChange={e => {
+                                    console.log('[TopBar] treeStyle changed:', e.target.value);
+                                    setTreeStyle(e.target.value);
+                                }}
+                                sx={{
+                                    minWidth: 110,
+                                    background: darkTheme ? '#222' : '#fff',
+                                    color: darkTheme ? '#fff' : '#333',
+                                    border: darkTheme ? '1px solid #444' : '1px solid #ccc',
+                                    '.MuiOutlinedInput-notchedOutline': {
+                                        borderColor: darkTheme ? '#444' : '#ccc',
+                                    },
+                                    '& .MuiSvgIcon-root': {
+                                        color: darkTheme ? '#fff' : '#333',
+                                },
+                                }}
+                            >
+                                <MenuItem value="dependency">Dependency</MenuItem>
+                                <MenuItem value="radial">Radial</MenuItem>
+                                <MenuItem value="angled">Angled</MenuItem>
+                            </Select>
+                        )}
+                        {viewType !== 'tree' && (
+                            <>
+                                <Select
+                                    size="small"
+                                    value={orderBy}
+                                    onChange={e => setOrderBy(e.target.value)}
+                                    sx={{
+                                        minWidth: 140,
+                                        background: darkTheme ? '#222' : '#fff',
+                                        color: darkTheme ? '#fff' : '#333',
+                                        border: darkTheme ? '1px solid #444' : '1px solid #ccc',
+                                        '.MuiOutlinedInput-notchedOutline': {
+                                            borderColor: darkTheme ? '#444' : '#ccc',
+                                        },
+                                        '& .MuiSvgIcon-root': {
+                                            color: darkTheme ? '#fff' : '#333',
+                            },
+                        }}
+                                >
+                                    {orderOptions.map(opt => (
+                                        <MenuItem value={opt}>{opt}</MenuItem>
+                                    ))}
+                                </Select>
+                                <Tooltip title={orderDirection === 'asc' ? 'Ascending' : 'Descending'}>
+                                    <IconButton onClick={() => setOrderDirection(orderDirection === 'asc' ? 'desc' : 'asc')} size="small">
+                                        {orderDirection === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
+                                    </IconButton>
+                                </Tooltip>
+                            </>
+                        )}
+                    </Stack>
+                    {/* Group 2: Search and view controls */}
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        {/* Collapsible Search */}
+                        <Box ref={searchRef} sx={{ display: 'flex', alignItems: 'center' }}>
+                            {searchOpen ? (
+                                <TextField
+                                    size="small"
+                                    autoFocus
+                                    placeholder="Search..."
+                                    value={searchTerm}
+                                    onChange={handleSearchChange}
+                                    onBlur={() => setSearchOpen(false)}
+                                    sx={{ width: 200, transition: 'width 0.3s' }}
+                                />
+                            ) : (
+                                <Tooltip title="Search">
+                                    <IconButton onClick={() => setSearchOpen(true)}>
+                                        <SearchIcon />
+                                    </IconButton>
+                                </Tooltip>
+                            )}
+                        </Box>
+                    <Tooltip title={showArrows ? "Hide Arrows" : "Show Arrows"}>
+                            <IconButton onClick={() => setShowArrows(!showArrows)}>
                             {showArrows ? <VisibilityIcon /> : <VisibilityOffIcon />}
                         </IconButton>
                     </Tooltip>
                     <Tooltip title={dottedLines ? "Use Solid Lines" : "Use Dotted Lines"}>
-                        <IconButton
-                            onClick={() => setDottedLines(!dottedLines)}
-                            sx={{
-                                color: darkTheme ? '#fff' : '#666',
-                                '&:hover': { color: darkTheme ? '#ccc' : '#333' },
-                            }}
-                        >
+                            <IconButton onClick={() => setDottedLines(!dottedLines)}>
                             {dottedLines ? <LinearScaleIcon /> : <RemoveIcon />}
                         </IconButton>
                     </Tooltip>
                     <Tooltip title={animatedLines ? "Disable Animation" : "Enable Animation"}>
-                        <IconButton
-                            onClick={() => setAnimatedLines(!animatedLines)}
-                            sx={{
-                                color: darkTheme ? '#fff' : '#666',
-                                '&:hover': { color: darkTheme ? '#ccc' : '#333' },
-                            }}
-                        >
+                            <IconButton onClick={() => setAnimatedLines(!animatedLines)}>
                             <WavesIcon color={animatedLines ? "primary" : "inherit"} />
                         </IconButton>
                     </Tooltip>
-                </Box>
-
-                <Stack direction="row" spacing={1}>
-                    <Button
-                        variant="outlined"
-                        startIcon={<FileUploadIcon />}
-                        onClick={handleFileButtonClick}
-                        sx={{
-                            borderColor: darkTheme ? '#999' : '#666',
-                            color: darkTheme ? '#fff' : '#666',
-                            '&:hover': {
-                                borderColor: darkTheme ? '#fff' : '#333',
-                                backgroundColor: 'transparent',
-                            },
-                        }}
-                    >
+                    </Stack>
+                    {/* Group 3: Action buttons */}
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 40 }}>
                         Load Rules
                     </Button>
-
-                    <Button
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        onClick={handleFileButtonClick}
-                        sx={{
-                            borderColor: darkTheme ? '#999' : '#666',
-                            color: darkTheme ? '#fff' : '#666',
-                            '&:hover': {
-                                borderColor: darkTheme ? '#fff' : '#333',
-                                backgroundColor: 'transparent',
-                            },
-                        }}
-                    >
-                        Export Rules
-                    </Button>
-
-                    <IconButton
-                        onClick={handleExportPdf}
-                        sx={{
-                            color: darkTheme ? '#fff' : '#666',
-                            '&:hover': { color: darkTheme ? '#ccc' : '#333' },
-                        }}
-                    >
+                        <IconButton onClick={handleExportPdf}>
                         <PictureAsPdfIcon />
                     </IconButton>
-
-                    <IconButton
-                        onClick={handleExportImage}
-                        sx={{
-                            color: darkTheme ? '#fff' : '#666',
-                            '&:hover': { color: darkTheme ? '#ccc' : '#333' },
-                        }}
-                    >
+                        <IconButton onClick={handleExportImage}>
                         <ImageIcon />
                     </IconButton>
-
-                    <IconButton
-                        onClick={handleWarningsClick}
-                        sx={{
-                            color: darkTheme ? '#fff' : '#666',
-                            '&:hover': { color: darkTheme ? '#ccc' : '#333' },
-                        }}
-                    >
+                        <IconButton onClick={handleWarningsClick}>
                         <Badge badgeContent={warningCount || 0} color="warning">
                             <ReportIcon />
                         </Badge>
                     </IconButton>
+                        {/* Dark mode toggle */}
+                        <Tooltip title={darkTheme ? 'Light Mode' : 'Dark Mode'}>
+                            <IconButton onClick={() => setDarkTheme(!darkTheme)}>
+                                {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
+                            </IconButton>
+                        </Tooltip>
+                    </Stack>
                 </Stack>
             </Box>
         </AppBar>

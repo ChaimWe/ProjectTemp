@@ -33,7 +33,7 @@ const drawerWidth = 240;
 export default function Sidebar({ view, setView }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const { darkTheme, setDarkTheme, getColor } = useThemeContext();
+  const { darkTheme, getColor } = useThemeContext();
 
   /**
    * Menu items for navigation and theme toggle.
@@ -42,12 +42,6 @@ export default function Sidebar({ view, setView }) {
     { key: 'home', label: 'Home', icon: <HomeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/') },
     { key: 'tree', label: 'WAF Tree', icon: <TreeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/app/visualization') },
     { key: 'debugger', label: 'Request Debugger', icon: <DebugIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/debugger') },
-    {
-      key: 'theme',
-      label: darkTheme ? 'Light Mode' : 'Dark Mode',
-      icon: darkTheme ? <LightModeIcon /> : <DarkModeIcon />,
-      onClick: () => setDarkTheme(!darkTheme),
-    },
   ];
 
   return (

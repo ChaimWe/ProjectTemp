@@ -49,8 +49,8 @@ export default class Tree {
         if (nodes.length === 0) return;
         const centerX = 1000;
         const startY = 100;
-        const verticalSpacing = 220;
-        const horizontalSpacing = 220;
+        const verticalSpacing = 120;
+        const horizontalSpacing = 120;
 
         // 1. Calculate levels for each node (distance from a root)
         const nodeMap = new Map(nodes.map(n => [n.id, n]));

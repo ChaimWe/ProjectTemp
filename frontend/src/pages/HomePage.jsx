@@ -83,7 +83,7 @@ function Home() {
             onClick={() => scrollToSection('welcome')}
           />
           <div style={styles.navLinks}>
-            <button onClick={() => scrollToSection('visualization')} style={{ ...styles.navButton, color: darkTheme ? '#fff' : '#220d4e' }}>
+            <button onClick={() => navigate('/app/visualization')} style={{ ...styles.navButton, color: darkTheme ? '#fff' : '#220d4e' }}>
               Visualization
             </button>
             <button onClick={() => scrollToSection('analysis')} style={{ ...styles.navButton, color: darkTheme ? '#fff' : '#220d4e' }}>
@@ -114,7 +114,7 @@ function Home() {
           </button>
         </div>
       </nav>
-      <div style={{ ...styles.container, position: 'relative', zIndex: 1 }}>
+     <div style={{ ...styles.container, position: 'relative', zIndex: 1 }}>
         <section id="welcome" style={{ ...styles.welcomeSection, color: darkTheme ? '#fff' : '#220d4e' }}>
           <div style={{ ...styles.welcomeContent, color: darkTheme ? '#fff' : '#220d4e' }}>
             <h1 style={{ ...styles.welcomeTitle, color: darkTheme ? '#fff' : '#220d4e', textShadow: darkTheme ? '0 2px 4px rgba(0,0,0,0.7)' : styles.welcomeTitle.textShadow }}>
@@ -126,7 +126,7 @@ function Home() {
               intuitive interface designed for cloud security professionals.
             </p>
             <div style={styles.welcomeCards}>
-              <div style={{ ...styles.welcomeCard, background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255,255,255,0.5)', border: darkTheme ? '3px solid #fff' : '3px solid #220d4e' }} onClick={() => scrollToSection('visualization')}>
+              <div style={{ ...styles.welcomeCard, background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255,255,255,0.5)', border: darkTheme ? '3px solid #fff' : '3px solid #220d4e' }} onClick={() => navigate('/app/visualization')}>
                 {/* Modern SVG icon for Intuitive Visualization */}
                 <svg
                   width="48"
@@ -189,7 +189,7 @@ function Home() {
               rule dependencies at a glance, making it easier to manage and optimize your WAF
               configuration.
             </p>
-            <button ref={visualizationBtnRef} onClick={() => navigate('/app')} style={{ ...styles.actionButton, background: darkTheme ? '#444' : '#220d4e', color: darkTheme ? '#fff' : '#fff', border: darkTheme ? '2px solid #fff' : '2px solid #220d4e' }}>
+            <button ref={visualizationBtnRef} onClick={() => navigate('/app/visualization')} style={{ ...styles.actionButton, background: darkTheme ? '#444' : '#220d4e', color: darkTheme ? '#fff' : '#fff', border: darkTheme ? '2px solid #fff' : '2px solid #220d4e' }}>
               Explore Visualization
             </button>
           </section>
@@ -241,13 +241,13 @@ function getStyles(darkTheme) {
       transition: 'background 0.5s',
     },
     nav: {
-      position: 'fixed',
+      position: 'sticky',
       top: 0,
       left: 0,
       right: 0,
       zIndex: 1000,
       height: '70px',
-      display: 'flex',
+      display: 'sticky',
       alignItems: 'center',
       transition: 'background 0.3s ease, box-shadow 0.3s ease',
     },

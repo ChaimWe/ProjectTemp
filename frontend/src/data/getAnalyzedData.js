@@ -1,11 +1,16 @@
 import { analyzeWafRules } from "./AIRequest";
 
-export default async function getAnalyzedData(dataArray, responseStyle = 'concise') {
-    if (!dataArray || !Array.isArray(dataArray)) {
-        throw new Error('Invalid input: dataArray must be an array');
+export default async function getAnalyzedData(data, responseStyle = 'concise') {
+    // Accept either an array (legacy) or an object with nodes and edges
+    let hashKey;
+    if (Array.isArray(data)) {
+        hashKey = btoa(JSON.stringify(data)).slice(0, 16);
+    } else if (data && typeof data === 'object' && Array.isArray(data.nodes) && Array.isArray(data.edges)) {
+        hashKey = btoa(JSON.stringify({ nodes: data.nodes, edges: data.edges })).slice(0, 16);
+    } else {
+        throw new Error('Invalid input: must be an array or an object with nodes and edges');
     }
 
-    const hashKey = btoa(JSON.stringify(dataArray)).slice(0, 16);
     const cachedData = localStorage.getItem(hashKey);
 
     try {
@@ -13,7 +18,8 @@ export default async function getAnalyzedData(dataArray, responseStyle = 'concis
             return JSON.parse(cachedData);
         }
 
-        const response = await analyzeWafRules(dataArray, responseStyle);
+        // Pass both nodes and edges to analyzeWafRules
+        const response = await analyzeWafRules(data, responseStyle);
         if (response.error) {
             return { rules: [] };
         }
@@ -22,6 +28,6 @@ export default async function getAnalyzedData(dataArray, responseStyle = 'concis
         return response;
     } catch (error) {
         console.error('Error in getAnalyzedData:', error);
-        return { rules: [] }; // החזרת ערך ברירת מחדל במקרה של שגיאה
+        return { rules: [] };
     }
 }

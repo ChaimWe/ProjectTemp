@@ -3,8 +3,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import TopBar from './components/layout/Topbar';
 import Sidebar from './components/layout/Sidebar';
 import { Box } from '@mui/material';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { useThemeContext } from './context/ThemeContext';
 
 /**
@@ -24,6 +22,10 @@ export default function AppLayout() {
   const [animatedLines, setAnimatedLines] = useState(false);
   const flowRef = useRef();
   const { darkTheme } = useThemeContext();
+  const [viewType, setViewType] = useState('tree'); // tree, table, card, etc.
+  const [treeSetup, setTreeSetup] = useState('collapsible'); // collapsible, horizontal, indented, etc.
+  const [orderBy, setOrderBy] = useState('name'); // name, date, type, etc.
+  const [treeStyle, setTreeStyle] = useState('dependency'); // dependency, radial, angled
 
   /**
    * Handles exporting the flowchart as a PDF file.
@@ -35,36 +37,17 @@ export default function AppLayout() {
     }
 
     try {
-      // Get the flow container element
-      const flowElement = document.querySelector('.react-flow');
-      if (!flowElement) {
-        console.warn('Flow element not found');
-        return;
+      // Use the handleExportPdf method from the FlowChart component
+      if (flowRef.current.handleExportPdf) {
+        flowRef.current.handleExportPdf();
+      } else {
+        console.warn('handleExportPdf method not available on flow ref');
       }
-
-      // Create a canvas from the flow element
-      const canvas = await html2canvas(flowElement, {
-        backgroundColor: darkTheme ? '#1a1a1a' : '#ffffff',
-        scale: 2, // Higher quality
-        logging: false,
-        useCORS: true
-      });
-
-      // Calculate dimensions
-      const imgWidth = 210; // A4 width in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      // Create PDF
-      const pdf = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
-      pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgWidth, imgHeight);
-      
-      // Save the PDF
-      pdf.save('waf-rules-flowchart.pdf');
     } catch (error) {
       console.error('Error exporting to PDF:', error);
       alert('Failed to export PDF. Please try again.');
     }
-  }, [flowRef, darkTheme]);
+  }, [flowRef]);
 
   /**
    * Handles exporting the flowchart as an image file.
@@ -76,29 +59,17 @@ export default function AppLayout() {
     }
 
     try {
-      const flowElement = document.querySelector('.react-flow');
-      if (!flowElement) {
-        console.warn('Flow element not found');
-        return;
+      // Use the handleExportImage method from the FlowChart component
+      if (flowRef.current.handleExportImage) {
+        flowRef.current.handleExportImage();
+      } else {
+        console.warn('handleExportImage method not available on flow ref');
       }
-
-      const canvas = await html2canvas(flowElement, {
-        backgroundColor: darkTheme ? '#1a1a1a' : '#ffffff',
-        scale: 2,
-        logging: false,
-        useCORS: true
-      });
-
-      // Convert to PNG and download
-      const link = document.createElement('a');
-      link.download = 'waf-rules-flowchart.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
     } catch (error) {
       console.error('Error exporting to image:', error);
       alert('Failed to export image. Please try again.');
     }
-  }, [flowRef, darkTheme]);
+  }, [flowRef]);
 
   /**
    * Handles opening the warnings popup.
@@ -129,6 +100,15 @@ export default function AppLayout() {
         setDottedLines={setDottedLines}
         animatedLines={animatedLines}
         setAnimatedLines={setAnimatedLines}
+        viewType={viewType}
+        setViewType={setViewType}
+        treeSetup={treeSetup}
+        setTreeSetup={setTreeSetup}
+        orderBy={orderBy}
+        setOrderBy={setOrderBy}
+        rules={data}
+        treeStyle={treeStyle}
+        setTreeStyle={setTreeStyle}
       />
       <Box sx={{ display: 'flex', width: '100vw', height: '100vh', pt: '70px', background: 'none', backgroundColor: 'none', m: 0, p: 0 }}>
         <Sidebar view={location.pathname.includes('debugger') ? 'debugger' : 'tree'} setView={v => navigate(v === 'debugger' ? '/app/debugger' : '/app/visualization')} />
@@ -146,8 +126,19 @@ export default function AppLayout() {
             data,
             setData,
             showArrows,
+            setShowArrows,
             dottedLines,
-            animatedLines
+            setDottedLines,
+            animatedLines,
+            setAnimatedLines,
+            viewType,
+            setViewType,
+            treeSetup,
+            setTreeSetup,
+            orderBy,
+            setOrderBy,
+            treeStyle,
+            setTreeStyle
           }} />
         </Box>
       </Box>

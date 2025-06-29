@@ -17,16 +17,33 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import CustomPolylineEdge from './CustomPolylineEdge';
 
 const nodeTypes = {
     'custom-node': CustomNode,
+};
+
+const edgeTypes = {
+    custom: CustomPolylineEdge,
 };
 
 /**
  * FlowChart component renders the main flowchart visualization using ReactFlow.
  * Handles node/edge selection, search, and visual styles for edges and nodes.
  */
-const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNode, searchTerm, showArrows, setShowArrows, dottedLines, animatedLines }, ref) => {
+const FlowChart = forwardRef(({
+    allNodes,
+    allEdges,
+    selectedNode,
+    setSelectedNode,
+    searchTerm,
+    showArrows,
+    setShowArrows,
+    dottedLines,
+    animatedLines,
+    treeSetup = 'collapsible',
+    orderBy = 'name'
+}, ref) => {
     const [nodes, setNodes] = useState([]);
     const [edges, setEdges] = useState([]);
     const [highlightedEdges, setHighlightedEdges] = useState(new Set());
@@ -53,9 +70,31 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
         return false;
     }, [setNodes, setEdges]);
 
+    // Sort nodes based on orderBy
+    const sortedNodes = useMemo(() => {
+        if (!allNodes) return [];
+        let nodesCopy = [...allNodes];
+        if (orderBy === 'name') {
+            nodesCopy.sort((a, b) => (a.data.name || '').localeCompare(b.data.name || ''));
+        } else if (orderBy === 'date') {
+            nodesCopy.sort((a, b) => new Date(a.data.date || 0) - new Date(b.data.date || 0));
+        } else if (orderBy === 'type') {
+            nodesCopy.sort((a, b) => (a.data.type || '').localeCompare(b.data.type || ''));
+        }
+        return nodesCopy;
+    }, [allNodes, orderBy]);
+
+    // Placeholder: handle treeSetup (future layout logic)
+    useEffect(() => {
+        if (treeSetup) {
+            // In the future, change layout here
+            console.log('[FlowChart] treeSetup changed:', treeSetup);
+        }
+    }, [treeSetup]);
+
     // Handle data initialization and updates
     useEffect(() => {
-        if (!allNodes?.length) {
+        if (!sortedNodes?.length) {
             setIsInitialized(false);
             setNodes([]);
             setEdges([]);
@@ -64,10 +103,17 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
             setConnectedNodeIds(new Set());
             return;
         }
-
         // Initialize or update data
-        const success = initializeData(allNodes, allEdges);
-    }, [allNodes, allEdges, initializeData]);
+        const success = initializeData(sortedNodes, allEdges);
+        // Fit view to canvas when nodes/edges change
+        if (reactFlowInstance && sortedNodes.length > 0) {
+            setTimeout(() => {
+                try {
+                    reactFlowInstance.fitView({ padding: 0.1, includeHiddenNodes: true });
+                } catch (e) { /* ignore */ }
+            }, 100);
+        }
+    }, [sortedNodes, allEdges, initializeData, reactFlowInstance]);
 
     /**
      * Handles search term changes to blur non-matching nodes.
@@ -82,11 +128,11 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
 
         const lowerSearch = searchTerm.toLowerCase();
         const nodesToBlur = new Set(
-            allNodes.filter(node => !JSON.stringify(node.data).toLowerCase().includes(lowerSearch))
+            sortedNodes.filter(node => !JSON.stringify(node.data).toLowerCase().includes(lowerSearch))
                     .map(node => node.id)
         );
         setBlurredNodes(nodesToBlur);
-    }, [searchTerm, allNodes, isInitialized]);
+    }, [searchTerm, sortedNodes, isInitialized]);
 
     const connectedNode = useCallback((id) => {
         const connectedEdges = edges.filter(edge =>
@@ -269,20 +315,44 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
         }
     }, [showArrows]);
 
-    /**
-     * Prepares the edge objects with styles and animation for ReactFlow.
-     */
+    const nodePositionMap = useMemo(() => {
+        const map = new Map();
+        nodesWithStyles.forEach(n => {
+            map.set(n.id, n.position);
+        });
+        return map;
+    }, [nodesWithStyles]);
+
     const edgesWithStyles = edges
-        .filter(edge => showArrows || visibleEdges.has(edge.id))
+        .filter(edge => {
+            // If showArrows is true, show all edges
+            if (showArrows) return true;
+            // If showArrows is false, only show edges connected to selected nodes
+            return visibleEdges.has(edge.id) || 
+                   (selectedNode && (edge.source === selectedNode || edge.target === selectedNode));
+        })
         .map(edge => {
-            const isConnected = selectedNode && (edge.source === selectedNode || edge.target === selectedNode);
+            let edgeType = 'default';
+            let edgeData = { ...edge.data };
+            // Use angled edges only for angled layout
+            if (treeSetup === 'angled') {
+                edgeType = 'custom';
+                const sourcePos = nodePositionMap.get(edge.source) || { x: 0, y: 0 };
+                const targetPos = nodePositionMap.get(edge.target) || { x: 0, y: 0 };
+                let direction = undefined;
+                if (sourcePos.y < targetPos.y) direction = 'child';
+                else if (sourcePos.y > targetPos.y) direction = 'parent';
+                edgeData.direction = direction;
+            }
+            // For dependency and radial layouts, use default edge type (straight line)
             return {
                 ...edge,
-                type: 'straight',
+                type: edgeType,
                 animated: animatedLines,
+                data: edgeData,
                 style: {
-                    stroke: isConnected ? '#c62828' : (darkTheme ? '#fff' : '#444'),
-                    strokeWidth: isConnected ? 2.5 : 1,
+                    stroke: (selectedNode && (edge.source === selectedNode || edge.target === selectedNode)) ? '#c62828' : (darkTheme ? '#fff' : '#444'),
+                    strokeWidth: (selectedNode && (edge.source === selectedNode || edge.target === selectedNode)) ? 2.5 : 1,
                     strokeDasharray: dottedLines ? '5 5' : undefined,
                     transition: 'stroke 0.2s',
                 },
@@ -290,10 +360,19 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
                     type: 'arrowclosed',
                     width: 20,
                     height: 20,
-                    color: isConnected ? '#c62828' : (darkTheme ? '#fff' : '#444'),
+                    color: (selectedNode && (edge.source === selectedNode || edge.target === selectedNode)) ? '#c62828' : (darkTheme ? '#fff' : '#444'),
                 } : undefined,
             };
         });
+
+    // Add debugging for edge visibility
+    useEffect(() => {
+        console.log('[FlowChart] showArrows:', showArrows);
+        console.log('[FlowChart] Total edges:', edges.length);
+        console.log('[FlowChart] Visible edges after filter:', edgesWithStyles.length);
+        console.log('[FlowChart] selectedNode:', selectedNode);
+        console.log('[FlowChart] visibleEdges size:', visibleEdges.size);
+    }, [showArrows, edges.length, edgesWithStyles.length, selectedNode, visibleEdges.size]);
 
     // Only keep the raster PDF export using html2canvas
     const handleExportPdf = useCallback((afterExportCallback) => {
@@ -334,11 +413,46 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
         }, 100); // 100ms delay to ensure DOM is ready
     }, []);
 
+    // Add image export functionality
+    const handleExportImage = useCallback((afterExportCallback) => {
+        const flowElement = document.querySelector('.react-flow');
+        if (!flowElement) {
+            if (afterExportCallback) afterExportCallback();
+            return;
+        }
+        setTimeout(() => {
+            const rect = flowElement.getBoundingClientRect();
+            html2canvas(flowElement, {
+                backgroundColor: darkTheme ? '#1a1a1a' : '#ffffff',
+                useCORS: true,
+                scale: 2, // Good quality for images
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+                scrollX: -window.scrollX,
+                scrollY: -window.scrollY,
+                onclone: (clonedDoc) => {
+                    // Remove any unwanted overlays or UI elements if needed
+                }
+            }).then(canvas => {
+                // Convert to PNG and download
+                const link = document.createElement('a');
+                link.download = 'waf-rules-flowchart.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                if (afterExportCallback) afterExportCallback();
+            }).catch(err => {
+                console.error('Error exporting image:', err);
+                if (afterExportCallback) afterExportCallback();
+            });
+        }, 100); // 100ms delay to ensure DOM is ready
+    }, [darkTheme]);
+
     /**
      * Expose PDF export to parent via ref.
      */
     React.useImperativeHandle(ref, () => ({
         handleExportPdf,
+        handleExportImage,
     }));
 
     // Style configuration based on dark mode
@@ -359,7 +473,7 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
         opacity: 1,
     }), [darkTheme, edgeStyles]);
 
-    if (!allNodes?.length || nodesWithStyles.length === 0) {
+    if (!sortedNodes?.length || nodesWithStyles.length === 0) {
         return <div style={{ color: '#aaa', padding: 20 }}>No nodes to display. Please load or add rules to see the flowchart.</div>;
     }
 
@@ -370,6 +484,7 @@ const FlowChart = forwardRef(({ allNodes, allEdges, selectedNode, setSelectedNod
                 nodes={nodesWithStyles}
                 edges={edgesWithStyles}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 onNodeClick={onNodeClick}
                 onNodeDoubleClick={onNodeDoubleClick}
                 onNodeMouseEnter={onNodeMouseEnter}

@@ -1,14 +1,25 @@
 import React from 'react';
 import './style/RuleDetailsPopup.css';
-import AnalyzedInfoSection from '../../data/AnalyzedInfoSection';
 import { useThemeContext } from '../../context/ThemeContext';
 
-const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat }) => {
+const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat, aiSummary, responseStyle }) => {
   if (!rule) {
     return <div style={{ color: 'red', padding: 16 }}>Error: Rule not found. Please try selecting a different rule.</div>;
   }
 
   const { getColor } = useThemeContext();
+
+  // Find the AI summary for this specific rule
+  const ruleIndex = parseInt(rule.id, 10);
+  const aiRuleData = aiSummary && aiSummary[ruleIndex];
+
+  console.log('[RuleDetailsPopup] Debug:', {
+    ruleId: rule.id,
+    ruleIndex,
+    aiSummaryLength: aiSummary?.length || 0,
+    aiRuleData,
+    hasDependencies: aiRuleData?.Dependencies?.length > 0
+  });
 
   return (
     <div className="rule-popup-content" style={{ backgroundColor: getColor('background'), }}>
@@ -32,7 +43,31 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat }) => {
         </span>
       </div>
 
-      <AnalyzedInfoSection dataArray={dataArray} rule={rule.id} />
+      {/* AI Analysis Section */}
+      {aiRuleData && (
+        <section
+          className="info-section"
+          style={{
+            backgroundColor: getColor('barBackground'),
+            marginBottom: '12px'
+          }}
+        >
+          <h3 style={{ color: getColor('barText') }}>📝 AI Analysis</h3>
+          <div className="details-container" style={{ marginTop: '4px', color: getColor('barText') }}>
+            <p style={{ margin: '4px 0' }}>
+              <strong>Type:</strong> {aiRuleData.Type || 'N/A'}
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <strong>Condition:</strong> {aiRuleData.Condition || 'N/A'}
+            </p>
+            {aiRuleData.Dependencies && aiRuleData.Dependencies.length > 0 && (
+              <p style={{ margin: '4px 0' }}>
+                <strong>Dependencies:</strong> {aiRuleData.Dependencies.join(', ')}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {(rule.warnings || []).length > 0 && (
         <section className="info-section warnings-section" style={{ backgroundColor: getColor('barBackground') }}>
