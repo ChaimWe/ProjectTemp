@@ -35,9 +35,12 @@ import BugReportIcon from '@mui/icons-material/BugReport';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import SecurityIcon from '@mui/icons-material/Security';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import CustomSnackbar from '../components/popup/CustomSnackbar';
 import bgImage from '../assets/pexels-scottwebb-1029624.jpg';
 import { useThemeContext } from '../context/ThemeContext';
+import UploadJsonButton from '../components/upload/UploadJsonButton';
+import RulesLoaderPopup from '../components/upload/RulesLoaderPopup';
 
 /**
  * RequestDebugger component for testing AWS WAF rules.
@@ -89,11 +92,16 @@ const RequestDebugger = ({ rules = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [loaderPopupOpen, setLoaderPopupOpen] = useState(false);
     const [warningCount, setWarningCount] = useState(0);
+    const [loadedRules, setLoadedRules] = useState([]);
 
     const { darkTheme, getColor } = useThemeContext();
 
+    // Combine passed rules with loaded rules
+    const allRules = [...safeRules, ...loadedRules];
+    const effectiveRules = allRules.filter(r => r && Object.keys(r).length > 0);
+
     // Fallback UI if no rules are loaded
-    if (!safeRules.length) {
+    if (!effectiveRules.length) {
         return (
             <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
                 {/* Background */}
@@ -110,6 +118,20 @@ const RequestDebugger = ({ rules = [] }) => {
                     zIndex: 0
                 }} />
                 
+                {/* Dark overlay for dark mode */}
+                {darkTheme && (
+                    <Box sx={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        background: 'rgba(0,0,0,0.55)',
+                        zIndex: 1,
+                        pointerEvents: 'none',
+                    }} />
+                )}
+                
                 {/* Content area */}
                 <Box sx={{ 
                     position: 'absolute',
@@ -118,34 +140,89 @@ const RequestDebugger = ({ rules = [] }) => {
                     right: '20px',
                     bottom: '20px',
                     overflow: 'auto',
-                    zIndex: 1
+                    zIndex: 2
                 }}>
                     <Container maxWidth="xl" sx={{ 
                         p: 2,
                         height: '100%',
                         position: 'relative',
                         '& .MuiPaper-root': {
-                            background: darkTheme ? getColor('barBackground') : 'rgba(255, 255, 255, 0.85)',
+                            background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255, 255, 255, 0.8)',
                             color: getColor('barText'),
-                            backdropFilter: 'blur(10px)',
+                            backdropFilter: 'blur(8px)',
                             borderRadius: 2,
                             border: `1px solid ${getColor('border')}`,
                             boxShadow: getColor('shadow'),
                             mb: 2,
                             position: 'relative',
                             '&:hover': {
-                                background: darkTheme ? getColor('hover') : 'rgba(255, 255, 255, 0.9)'
+                                background: darkTheme ? 'rgba(50,50,50,0.8)' : 'rgba(255, 255, 255, 0.9)'
                             }
                         }
                     }}>
-                        <Typography variant="h6" sx={{ 
-                            color: getColor('barText'),
-                            textShadow: darkTheme ? '0 0 10px rgba(0,0,0,0.3)' : undefined
-                        }}>
-                            No rules loaded. Please load rules in the Visualization view first.
-                        </Typography>
+                        <Paper sx={{ p: 4, textAlign: 'center' }}>
+                            <SecurityIcon sx={{ fontSize: 64, color: '#1976d2', mb: 2 }} />
+                            <Typography variant="h4" sx={{ 
+                                color: getColor('barText'),
+                                textShadow: darkTheme ? '0 0 10px rgba(0,0,0,0.3)' : undefined,
+                                mb: 2
+                            }}>
+                                No Rules Loaded
+                            </Typography>
+                            <Typography variant="body1" sx={{ 
+                                color: getColor('barText'),
+                                mb: 3,
+                                maxWidth: '600px',
+                                margin: '0 auto'
+                            }}>
+                                To start testing and debugging your WAF rules, you need to load them first. 
+                                You can either load rules from the Visualization view or upload them directly here.
+                            </Typography>
+                            
+                            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<UploadFileIcon />}
+                                    onClick={() => setLoaderPopupOpen(true)}
+                                    sx={{
+                                        background: 'linear-gradient(45deg, #1976d2, #2e7d32)',
+                                        color: '#fff',
+                                        '&:hover': {
+                                            background: 'linear-gradient(45deg, #1565c0, #1b5e20)',
+                                        },
+                                    }}
+                                >
+                                    Load Rules
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => navigate('/app/visualization')}
+                                    sx={{
+                                        borderColor: getColor('border'),
+                                        color: getColor('barText'),
+                                        '&:hover': {
+                                            borderColor: '#1976d2',
+                                            backgroundColor: 'rgba(25, 118, 210, 0.05)',
+                                        },
+                                    }}
+                                >
+                                    Go to Visualization
+                                </Button>
+                            </Box>
+                        </Paper>
                     </Container>
                 </Box>
+                
+                {/* Rules Loader Popup */}
+                <RulesLoaderPopup
+                    open={loaderPopupOpen}
+                    onClose={() => setLoaderPopupOpen(false)}
+                    onRulesLoaded={(rules) => {
+                        setLoadedRules(rules);
+                        setLoaderPopupOpen(false);
+                        showMessage(`Loaded ${rules.length} rules successfully!`, 'success');
+                    }}
+                />
             </Box>
         );
     }
@@ -248,7 +325,7 @@ const RequestDebugger = ({ rules = [] }) => {
                 setCurrentRequestState(initialRequestState);
 
                 // Start with the first rule
-                const firstRule = safeRules[0];
+                const firstRule = effectiveRules[0];
                 if (firstRule) {
                     try {
                         const initialLabels = new Set();
@@ -288,7 +365,7 @@ const RequestDebugger = ({ rules = [] }) => {
                 showMessage('Step-by-step mode started. Rules will be evaluated one by one.');
             } else {
                 // Full mode - evaluate all rules at once
-                const { matchedRules, labelsGenerated } = evaluateRulesAgainstRequest(testRequest, safeRules);
+                const { matchedRules, labelsGenerated } = evaluateRulesAgainstRequest(testRequest, effectiveRules);
 
                 setTestResults({
                     request: testRequest,
@@ -1323,13 +1400,13 @@ const RequestDebugger = ({ rules = [] }) => {
 
     // Step to the next rule
     const stepToNextRule = () => {
-        if (!safeRules || currentRuleIndex >= safeRules.length - 1) {
+        if (!effectiveRules || currentRuleIndex >= effectiveRules.length - 1) {
             showMessage('You have reached the end of the rule set', 'info');
             return;
         }
 
         const nextIndex = currentRuleIndex + 1;
-        const nextRule = safeRules[nextIndex];
+        const nextRule = effectiveRules[nextIndex];
 
         // Convert request config to the format needed for evaluation
         const testRequest = {
@@ -1811,19 +1888,19 @@ const RequestDebugger = ({ rules = [] }) => {
 
         // Filter out labels from rate limit rules that haven't exceeded their limit
         const filteredLabels = request.addedLabels.filter(label => {
-            const rule = safeRules.find(r => r.Name === label.addedByRule);
+            const rule = effectiveRules.find(r => r.Name === label.addedByRule);
             return isRateLimitExceeded(rule);
         });
 
         // Filter out headers from rate limit rules that haven't exceeded their limit
         const filteredHeaders = request.addedHeaders.filter(header => {
-            const rule = safeRules.find(r => r.Name === header.addedByRule);
+            const rule = effectiveRules.find(r => r.Name === header.addedByRule);
             return isRateLimitExceeded(rule);
         });
 
         // Filter actions, but keep counting actions even if rate limit not exceeded
         const filteredActions = request.actions.filter(action => {
-            const rule = safeRules.find(r => r.Name === action.rule);
+            const rule = effectiveRules.find(r => r.Name === action.rule);
             // Keep counting actions even if rate limit not exceeded
             if (isCountingAction(action)) return true;
             return isRateLimitExceeded(rule);
@@ -1977,7 +2054,7 @@ const RequestDebugger = ({ rules = [] }) => {
 
                                                     // Special handling for counting actions
                                                     if (isCountingAction(action)) {
-                                                        const rule = safeRules.find(r => r.Name === action.rule);
+                                                        const rule = effectiveRules.find(r => r.Name === action.rule);
                                                         const rateStatus = getRateLimitStatus(rule);
                                                         if (rateStatus) {
                                                             actionLabel = `Count (${rateStatus.requestNumber}/${rateStatus.limit} requests)`;
@@ -2050,6 +2127,21 @@ const RequestDebugger = ({ rules = [] }) => {
                     zIndex: 0
                 }}
             />
+            
+            {/* Dark overlay for dark mode */}
+            {darkTheme && (
+                <Box sx={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    background: 'rgba(0,0,0,0.55)',
+                    zIndex: 1,
+                    pointerEvents: 'none',
+                }} />
+            )}
+            
             {/* Content area, full-bleed */}
             <Box sx={{
                 position: 'absolute',
@@ -2058,19 +2150,80 @@ const RequestDebugger = ({ rules = [] }) => {
                 right: '20px',
                 bottom: '20px',
                 overflow: 'auto',
-                zIndex: 1,
+                zIndex: 2,
                 width: 'auto',
                 height: 'auto',
                 p: 0,
                 m: 0,
-                background: darkTheme ? getColor('background') : 'rgba(255,255,255,0.85)',
+                background: darkTheme ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)',
                 color: getColor('barText'),
                 borderRadius: 2,
                 border: `1px solid ${getColor('border')}`,
-                boxShadow: getColor('shadow')
+                boxShadow: getColor('shadow'),
+                backdropFilter: 'blur(8px)',
+                '&::-webkit-scrollbar': {
+                    width: '8px',
+                },
+                '&::-webkit-scrollbar-track': {
+                    background: 'rgba(0,0,0,0.05)',
+                    borderRadius: '4px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                    background: 'linear-gradient(180deg, rgba(25, 118, 210, 0.4), rgba(46, 125, 50, 0.4))',
+                    borderRadius: '4px',
+                    '&:hover': {
+                        background: 'linear-gradient(180deg, rgba(25, 118, 210, 0.6), rgba(46, 125, 50, 0.6))',
+                    },
+                },
             }}>
                 {/* Request Configuration Form */}
-                <Paper variant="outlined" sx={{ p: 3, mb: 3, background: darkTheme ? getColor('barBackground') : undefined, color: getColor('barText'), border: `1px solid ${getColor('border')}` }}>
+                <Paper variant="outlined" sx={{ 
+                    p: 3, 
+                    mb: 3, 
+                    background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255,255,255,0.8)', 
+                    color: getColor('barText'), 
+                    border: `1px solid ${getColor('border')}`,
+                    backdropFilter: 'blur(4px)',
+                    '& .MuiFormControl-root': {
+                        '& .MuiInputLabel-root': {
+                            color: getColor('barText'),
+                        },
+                        '& .MuiOutlinedInput-root': {
+                            backgroundColor: darkTheme ? 'rgba(20,20,20,0.6)' : 'rgba(255,255,255,0.7)',
+                            '& fieldset': {
+                                borderColor: getColor('border'),
+                            },
+                            '&:hover fieldset': {
+                                borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                            },
+                            '&.Mui-focused fieldset': {
+                                borderColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                            },
+                        },
+                        '& .MuiInputBase-input': {
+                            color: getColor('barText'),
+                        },
+                        '& .MuiSelect-select': {
+                            color: getColor('barText'),
+                        },
+                    },
+                    '& .MuiTypography-root': {
+                        color: getColor('barText'),
+                    },
+                    '& .MuiFormControlLabel-root': {
+                        '& .MuiFormControlLabel-label': {
+                            color: getColor('barText'),
+                        },
+                    },
+                    '& .MuiSwitch-root': {
+                        '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: darkTheme ? '#1976d2' : '#1976d2',
+                        },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                        },
+                    },
+                }}>
                     <Typography variant="h6" gutterBottom sx={{ color: getColor('barText') }}>
                         Test Request Configuration
                     </Typography>
@@ -2078,10 +2231,27 @@ const RequestDebugger = ({ rules = [] }) => {
                         {/* Method and Path */}
                         <Grid item xs={12} sm={6}>
                             <FormControl fullWidth>
-                                <InputLabel>Method</InputLabel>
+                                <InputLabel sx={{ color: getColor('barText') }}>Method</InputLabel>
                                 <Select
                                     value={requestConfig.method}
                                     onChange={(e) => handleChange('method', e.target.value)}
+                                    sx={{
+                                        '& .MuiSelect-select': {
+                                            color: getColor('barText'),
+                                        },
+                                        '& .MuiOutlinedInput-root': {
+                                            backgroundColor: darkTheme ? getColor('background') : 'rgba(255,255,255,0.8)',
+                                            '& fieldset': {
+                                                borderColor: getColor('border'),
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                                            },
+                                        },
+                                    }}
                                 >
                                     <MenuItem value="GET">GET</MenuItem>
                                     <MenuItem value="POST">POST</MenuItem>
@@ -2097,6 +2267,26 @@ const RequestDebugger = ({ rules = [] }) => {
                                 value={requestConfig.path}
                                 onChange={(e) => handleChange('path', e.target.value)}
                                 placeholder="/api/resource"
+                                sx={{
+                                    '& .MuiInputLabel-root': {
+                                        color: getColor('barText'),
+                                    },
+                                    '& .MuiOutlinedInput-root': {
+                                        backgroundColor: darkTheme ? getColor('background') : 'rgba(255,255,255,0.8)',
+                                        '& fieldset': {
+                                            borderColor: getColor('border'),
+                                        },
+                                        '&:hover fieldset': {
+                                            borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                        },
+                                        '&.Mui-focused fieldset': {
+                                            borderColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                                        },
+                                    },
+                                    '& .MuiInputBase-input': {
+                                        color: getColor('barText'),
+                                    },
+                                }}
                             />
                         </Grid>
 
@@ -2108,13 +2298,33 @@ const RequestDebugger = ({ rules = [] }) => {
                                 value={requestConfig.queryParams}
                                 onChange={(e) => handleChange('queryParams', e.target.value)}
                                 placeholder="param1=value1&param2=value2"
+                                sx={{
+                                    '& .MuiInputLabel-root': {
+                                        color: getColor('barText'),
+                                    },
+                                    '& .MuiOutlinedInput-root': {
+                                        backgroundColor: darkTheme ? getColor('background') : 'rgba(255,255,255,0.8)',
+                                        '& fieldset': {
+                                            borderColor: getColor('border'),
+                                        },
+                                        '&:hover fieldset': {
+                                            borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                        },
+                                        '&.Mui-focused fieldset': {
+                                            borderColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                                        },
+                                    },
+                                    '& .MuiInputBase-input': {
+                                        color: getColor('barText'),
+                                    },
+                                }}
                             />
                         </Grid>
 
                         {/* Headers */}
                         <Grid item xs={12}>
                             <Box sx={{ mb: 2 }}>
-                                <Typography variant="subtitle2" gutterBottom>
+                                <Typography variant="subtitle2" gutterBottom sx={{ color: getColor('barText') }}>
                                     Headers
                                 </Typography>
                                 {requestConfig.headers.map((header, index) => (
@@ -2124,13 +2334,53 @@ const RequestDebugger = ({ rules = [] }) => {
                                             value={header.name}
                                             onChange={(e) => updateHeader(index, 'name', e.target.value)}
                                             size="small"
+                                            sx={{
+                                                '& .MuiInputLabel-root': {
+                                                    color: getColor('barText'),
+                                                },
+                                                '& .MuiOutlinedInput-root': {
+                                                    backgroundColor: darkTheme ? getColor('background') : 'rgba(255,255,255,0.8)',
+                                                    '& fieldset': {
+                                                        borderColor: getColor('border'),
+                                                    },
+                                                    '&:hover fieldset': {
+                                                        borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                                    },
+                                                    '&.Mui-focused fieldset': {
+                                                        borderColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                                                    },
+                                                },
+                                                '& .MuiInputBase-input': {
+                                                    color: getColor('barText'),
+                                                },
+                                            }}
                                         />
                                         <TextField
                                             label="Value"
                                             value={header.value}
                                             onChange={(e) => updateHeader(index, 'value', e.target.value)}
                                             size="small"
-                                            sx={{ flex: 1 }}
+                                            sx={{ 
+                                                flex: 1,
+                                                '& .MuiInputLabel-root': {
+                                                    color: getColor('barText'),
+                                                },
+                                                '& .MuiOutlinedInput-root': {
+                                                    backgroundColor: darkTheme ? getColor('background') : 'rgba(255,255,255,0.8)',
+                                                    '& fieldset': {
+                                                        borderColor: getColor('border'),
+                                                    },
+                                                    '&:hover fieldset': {
+                                                        borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                                    },
+                                                    '&.Mui-focused fieldset': {
+                                                        borderColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                                                    },
+                                                },
+                                                '& .MuiInputBase-input': {
+                                                    color: getColor('barText'),
+                                                },
+                                            }}
                                         />
                                         <IconButton onClick={() => removeHeader(index)} color="error">
                                             <DeleteIcon />
@@ -2142,6 +2392,14 @@ const RequestDebugger = ({ rules = [] }) => {
                                     onClick={addHeader}
                                     variant="outlined"
                                     size="small"
+                                    sx={{
+                                        borderColor: getColor('border'),
+                                        color: getColor('barText'),
+                                        '&:hover': {
+                                            borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                            backgroundColor: darkTheme ? 'rgba(25, 118, 210, 0.1)' : 'rgba(25, 118, 210, 0.05)',
+                                        },
+                                    }}
                                 >
                                     Add Header
                                 </Button>
@@ -2157,6 +2415,26 @@ const RequestDebugger = ({ rules = [] }) => {
                                 onChange={(e) => handleChange('body', e.target.value)}
                                 multiline
                                 rows={4}
+                                sx={{
+                                    '& .MuiInputLabel-root': {
+                                        color: getColor('barText'),
+                                    },
+                                    '& .MuiOutlinedInput-root': {
+                                        backgroundColor: darkTheme ? getColor('background') : 'rgba(255,255,255,0.8)',
+                                        '& fieldset': {
+                                            borderColor: getColor('border'),
+                                        },
+                                        '&:hover fieldset': {
+                                            borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                        },
+                                        '&.Mui-focused fieldset': {
+                                            borderColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                                        },
+                                    },
+                                    '& .MuiInputBase-input': {
+                                        color: getColor('barText'),
+                                    },
+                                }}
                             />
                         </Grid>
                     </Grid>
@@ -2168,6 +2446,13 @@ const RequestDebugger = ({ rules = [] }) => {
                             onClick={testRequest}
                             disabled={loading}
                             startIcon={<BugReportIcon />}
+                            sx={{
+                                background: darkTheme ? 'linear-gradient(45deg, #1976d2, #2e7d32)' : 'linear-gradient(45deg, #1976d2, #2e7d32)',
+                                color: '#ffffff',
+                                '&:hover': {
+                                    background: darkTheme ? 'linear-gradient(45deg, #1565c0, #1b5e20)' : 'linear-gradient(45deg, #1565c0, #1b5e20)',
+                                },
+                            }}
                         >
                             Test Request
                         </Button>
@@ -2176,24 +2461,57 @@ const RequestDebugger = ({ rules = [] }) => {
                                 <Switch
                                     checked={stepMode}
                                     onChange={(e) => setStepMode(e.target.checked)}
+                                    sx={{
+                                        '& .MuiSwitch-switchBase.Mui-checked': {
+                                            color: darkTheme ? '#1976d2' : '#1976d2',
+                                        },
+                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                            backgroundColor: darkTheme ? '#2e7d32' : '#2e7d32',
+                                        },
+                                    }}
                                 />
                             }
                             label="Step-by-Step Mode"
+                            sx={{
+                                '& .MuiFormControlLabel-label': {
+                                    color: getColor('barText'),
+                                },
+                            }}
                         />
                     </Box>
                 </Paper>
 
                 {/* Test Results */}
                 {testResults && !stepMode && (
-                    <Paper variant="outlined" sx={{ p: 3 }}>
-                        <Typography variant="h6" gutterBottom>
+                    <Paper variant="outlined" sx={{ 
+                        p: 3, 
+                        background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255,255,255,0.8)', 
+                        color: getColor('barText'), 
+                        border: `1px solid ${getColor('border')}`,
+                        backdropFilter: 'blur(4px)',
+                        '& .MuiTypography-root': {
+                            color: getColor('barText'),
+                        },
+                        '& .MuiAccordion-root': {
+                            backgroundColor: darkTheme ? 'rgba(20,20,20,0.6)' : 'rgba(255,255,255,0.7)',
+                            color: getColor('barText'),
+                            backdropFilter: 'blur(2px)',
+                            '& .MuiAccordionSummary-root': {
+                                color: getColor('barText'),
+                            },
+                            '& .MuiAccordionDetails-root': {
+                                backgroundColor: darkTheme ? 'rgba(15,15,15,0.4)' : 'rgba(250,250,250,0.5)',
+                            },
+                        },
+                    }}>
+                        <Typography variant="h6" gutterBottom sx={{ color: getColor('barText') }}>
                             Test Results
                         </Typography>
                         <Box>
                             {testResults.matchedRules.map((match, index) => (
                                 <Accordion key={index}>
                                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                        <Typography>
+                                        <Typography sx={{ color: getColor('barText') }}>
                                             Rule: {match.rule.Name} (Priority: {match.rule.Priority})
                                         </Typography>
                                     </AccordionSummary>
@@ -2216,13 +2534,31 @@ const RequestDebugger = ({ rules = [] }) => {
                                 onClick={stepToPreviousRule}
                                 disabled={currentRuleIndex === 0}
                                 startIcon={<NavigateNextIcon sx={{ transform: 'rotate(180deg)' }} />}
+                                sx={{
+                                    borderColor: getColor('border'),
+                                    color: getColor('barText'),
+                                    '&:hover': {
+                                        borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                        backgroundColor: darkTheme ? 'rgba(25, 118, 210, 0.1)' : 'rgba(25, 118, 210, 0.05)',
+                                    },
+                                }}
+                                variant="outlined"
                             >
                                 Previous Rule
                             </Button>
                             <Button
                                 onClick={stepToNextRule}
-                                disabled={currentRuleIndex >= safeRules.length - 1}
+                                disabled={currentRuleIndex >= effectiveRules.length - 1}
                                 endIcon={<NavigateNextIcon />}
+                                sx={{
+                                    borderColor: getColor('border'),
+                                    color: getColor('barText'),
+                                    '&:hover': {
+                                        borderColor: darkTheme ? '#1976d2' : '#1976d2',
+                                        backgroundColor: darkTheme ? 'rgba(25, 118, 210, 0.1)' : 'rgba(25, 118, 210, 0.05)',
+                                    },
+                                }}
+                                variant="outlined"
                             >
                                 Next Rule
                             </Button>

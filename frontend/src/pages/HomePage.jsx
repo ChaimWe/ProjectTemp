@@ -1,53 +1,79 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import backgroundImage from '../assets/pexels-scottwebb-1029624.jpg';
 import logo from '../assets/1002079229-removebg-preview.png';
+import logoDark from '../assets/1002079229-removebg-preview-modified.png';
 import { useThemeContext } from '../context/ThemeContext';
-import { LightMode as LightModeIcon, DarkMode as DarkModeIcon } from '@mui/icons-material';
+import { 
+  LightMode as LightModeIcon, 
+  DarkMode as DarkModeIcon,
+  Visibility as VisibilityIcon,
+  BugReport as BugReportIcon,
+  SmartToy as SmartToyIcon,
+  ArrowForward as ArrowForwardIcon,
+  Security as SecurityIcon,
+  Speed as SpeedIcon,
+  Insights as InsightsIcon
+} from '@mui/icons-material';
 
 function Home() {
   const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-  const visualizationBtnRef = useRef(null);
-  const analysisBtnRef = useRef(null);
-  const aboutBtnRef = useRef(null);
   const { darkTheme, setDarkTheme } = useThemeContext();
-
-  // Dynamic styles based on darkTheme
-  const styles = getStyles(darkTheme);
 
   useEffect(() => {
     setIsVisible(true);
-
-    // Listen for scroll to toggle navbar background
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 0);
-    };
-    window.addEventListener('scroll', handleScroll);
-
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Helper to focus the button after scroll
-  const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-      setTimeout(() => {
-        if (sectionId === 'visualization' && visualizationBtnRef.current) {
-          visualizationBtnRef.current.focus();
-        } else if (sectionId === 'analysis' && analysisBtnRef.current) {
-          analysisBtnRef.current.focus();
-        } else if (sectionId === 'about' && aboutBtnRef.current) {
-          aboutBtnRef.current.focus();
-        }
-      }, 500); // Wait for scroll animation
+  const features = [
+    {
+      icon: <VisibilityIcon sx={{ fontSize: 40 }} />,
+      title: "Interactive Visualization",
+      description: "Explore your WAF rules through dynamic, interactive graphs that show relationships and dependencies at a glance.",
+      action: () => navigate('/app/visualization'),
+      color: '#1976d2'
+    },
+    {
+      icon: <BugReportIcon sx={{ fontSize: 40 }} />,
+      title: "Rule Testing & Debugging",
+      description: "Test your WAF rules against real requests and see exactly how they behave in different scenarios.",
+      action: () => navigate('/app/debugger'),
+      color: '#2e7d32'
+    },
+    {
+      icon: <SmartToyIcon sx={{ fontSize: 40 }} />,
+      title: "AI-Powered Insights",
+      description: "Get intelligent recommendations and explanations about your WAF rules from our AI assistant.",
+      action: () => navigate('/app/ai'),
+      color: '#00897b'
     }
-  };
+  ];
+
+  const benefits = [
+    {
+      icon: <SecurityIcon sx={{ fontSize: 32 }} />,
+      title: "Enhanced Security",
+      description: "Identify gaps and optimize your WAF configuration for better protection."
+    },
+    {
+      icon: <SpeedIcon sx={{ fontSize: 32 }} />,
+      title: "Improved Performance",
+      description: "Streamline your rules for faster processing and reduced latency."
+    },
+    {
+      icon: <InsightsIcon sx={{ fontSize: 32 }} />,
+      title: "Better Understanding",
+      description: "Visualize complex rule relationships that are impossible to see in code alone."
+    }
+  ];
 
   return (
-    <div style={{ ...styles.mainContainer, position: 'relative' }}>
+    <div style={{ 
+      minHeight: '100vh',
+      background: `url(${backgroundImage}) no-repeat center center / cover`,
+      position: 'relative',
+      fontFamily: "'Poppins', sans-serif"
+    }}>
       {/* Dark overlay for dark mode */}
       {darkTheme && (
         <div style={{
@@ -61,408 +87,391 @@ function Home() {
           pointerEvents: 'none',
         }} />
       )}
-      <nav
-        style={{
-          ...styles.nav,
-          background: isScrolled
-            ? (darkTheme ? '#222' : '#fff')
-            : (darkTheme ? 'rgba(34,34,34,0.7)' : 'rgba(255, 255, 255, 0.5)'),
-          color: darkTheme ? '#fff' : '#220d4e',
-          boxShadow: isScrolled
-            ? '0 2px 10px rgba(0,0,0,0.15)'
-            : '0 2px 10px rgba(0,0,0,0.1)',
-          zIndex: 2,
-          position: 'relative',
-        }}
-      >
-        <div style={styles.navContent}>
+
+      {/* Navigation */}
+      <nav style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        height: '70px',
+        background: darkTheme ? 'rgba(34, 34, 34, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: `1px solid ${darkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 2rem'
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          width: '100%',
+          margin: '0 auto',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
           <img
-            src={logo}
+            src={darkTheme ? logoDark : logo}
             alt="Logo"
-            style={styles.logoImage}
-            onClick={() => scrollToSection('welcome')}
+            style={{
+              height: '60px',
+              cursor: 'pointer'
+            }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           />
-          <div style={styles.navLinks}>
-            <button onClick={() => navigate('/app/visualization')} style={{ ...styles.navButton, color: darkTheme ? '#fff' : '#220d4e' }}>
-              Visualization
-            </button>
-            <button onClick={() => scrollToSection('analysis')} style={{ ...styles.navButton, color: darkTheme ? '#fff' : '#220d4e' }}>
-              Analysis
-            </button>
-            <button onClick={() => scrollToSection('about')} style={{ ...styles.navButton, color: darkTheme ? '#fff' : '#220d4e' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button
+              onClick={() => navigate('/about')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: darkTheme ? '#fff' : '#333',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  background: darkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                }
+              }}
+            >
               About
             </button>
+            <button
+              onClick={() => setDarkTheme(!darkTheme)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: darkTheme ? '#fff' : '#333',
+                cursor: 'pointer',
+                padding: '0.5rem',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 0.2s ease',
+                '&:hover': {
+                  background: darkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                }
+              }}
+              title={darkTheme ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
+            </button>
           </div>
-          <button
-            onClick={() => setDarkTheme(!darkTheme)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: darkTheme ? '#fff' : '#220d4e',
-              cursor: 'pointer',
-              marginLeft: '1rem',
-              fontSize: '1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0.25rem',
-              borderRadius: '50%',
-              transition: 'background 0.2s',
-            }}
-            title={darkTheme ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
-          </button>
         </div>
       </nav>
-     <div style={{ ...styles.container, position: 'relative', zIndex: 1 }}>
-        <section id="welcome" style={{ ...styles.welcomeSection, color: darkTheme ? '#fff' : '#220d4e' }}>
-          <div style={{ ...styles.welcomeContent, color: darkTheme ? '#fff' : '#220d4e' }}>
-            <h1 style={{ ...styles.welcomeTitle, color: darkTheme ? '#fff' : '#220d4e', textShadow: darkTheme ? '0 2px 4px rgba(0,0,0,0.7)' : styles.welcomeTitle.textShadow }}>
-              Welcome to AWS WAF Visualization
-            </h1>
-            <p style={{ ...styles.welcomeText, color: darkTheme ? '#eee' : '#220d4e', textShadow: darkTheme ? '0 1px 2px rgba(0,0,0,0.7)' : styles.welcomeText.textShadow }}>
-              Transform your AWS WAF management experience with our powerful visualization tools.
-              Discover insights, analyze patterns, and optimize your security rules with an
-              intuitive interface designed for cloud security professionals.
-            </p>
-            <div style={styles.welcomeCards}>
-              <div style={{ ...styles.welcomeCard, background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255,255,255,0.5)', border: darkTheme ? '3px solid #fff' : '3px solid #220d4e' }} onClick={() => navigate('/app/visualization')}>
-                {/* Modern SVG icon for Intuitive Visualization */}
-                <svg
-                  width="48"
-                  height="48"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={darkTheme ? '#fff' : '#220d4e'}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={styles.cardIcon}
-                >
-                  <polyline points="3 6 9 11 13 7 21 12" />
-                  <polyline points="3 12 9 17 13 13 21 18" />
-                </svg>
-                <h3 style={{ ...styles.cardTitle, color: darkTheme ? '#fff' : '#220d4e' }}>Intuitive Visualization</h3>
-              </div>
-              <div style={{ ...styles.welcomeCard, background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255,255,255,0.5)', border: darkTheme ? '3px solid #fff' : '3px solid #220d4e' }} onClick={() => scrollToSection('analysis')}>
-                {/* Modern SVG icon for Advanced Analytics */}
-                <svg
-                  width="48px"
-                  height="48px"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  style={styles.cardIcon}
-                >
-                  <path
-                    d="M10 11C10 10.4477 10.4477 10 11 10H13C13.5523 10 14 10.4477 14 11C14 11.5523 13.5523 12 13 12H11C10.4477 12 10 11.5523 10 11Z"
-                    fill={darkTheme ? '#fff' : 'black'}
-                  />
-                  <path
-                    d="M11 14C10.4477 14 10 14.4477 10 15C10 15.5523 10.4477 16 11 16H13C13.5523 16 14 15.5523 14 15C14 14.4477 13.5523 14 13 14H11Z"
-                    fill={darkTheme ? '#fff' : 'black'}
-                  />
-                  <path
-                    fillRule="evenodd"
-                    clipRule="evenodd"
-                    d="M9.09447 4.74918C8.41606 4.03243 8 3.0648 8 2H10C10 3.10457 10.8954 4 12 4C13.1046 4 14 3.10457 14 2H16C16 3.0648 15.5839 4.03243 14.9055 4.74918C16.1782 5.45491 17.1673 6.6099 17.6586 8H19C19.5523 8 20 8.44772 20 9C20 9.55229 19.5523 10 19 10H18V12H19C19.5523 12 20 12.4477 20 13C20 13.5523 19.5523 14 19 14H18V16H19C19.5523 16 20 16.4477 20 17C20 17.5523 19.5523 18 19 18H17.6586C16.8349 20.3304 14.6124 22 12 22C9.38756 22 7.16508 20.3304 6.34141 18H5C4.44772 18 4 17.5523 4 17C4 16.4477 4.44772 16 5 16H6V14H5C4.44772 14 4 13.5523 4 13C4 12.4477 4.44772 12 5 12H6V10H5C4.44772 10 4 9.55229 4 9C4 8.44772 4.44772 8 5 8H6.34141C6.83274 6.6099 7.82181 5.45491 9.09447 4.74918ZM8 16V10C8 7.79086 9.79086 6 12 6C14.2091 6 16 7.79086 16 10V16C16 18.2091 14.2091 20 12 20C9.79086 20 8 18.2091 8 16Z"
-                    fill={darkTheme ? 'rgb(255,255,255)' : 'rgb(34, 13, 78)'}
-                  />
-                </svg>
-                <h3 style={{ ...styles.cardTitle, color: darkTheme ? '#fff' : '#220d4e' }}>Advanced Analytics</h3>
-              </div>
-            </div>
-          </div>
-        </section>
-        <div
-          style={{
-            ...styles.content,
-            opacity: isVisible ? 1 : 0,
-            transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
-            color: darkTheme ? '#fff' : '#220d4e',
-          }}
-        >
-          <section id="visualization" style={{ ...styles.section, background: darkTheme ? 'rgba(30,30,30,0.7)' : 'rgba(255,255,255,0.5)', color: darkTheme ? '#fff' : '#220d4e' }}>
-            <h2 style={{ ...styles.sectionTitle, color: darkTheme ? '#fff' : '#220d4e' }}>Dependency Visualization</h2>
-            <p style={{ ...styles.sectionText, color: darkTheme ? '#eee' : '#333' }}>
-              Explore the intricate relationships between your WAF rules through our interactive
-              visualization tool. This powerful graph-based interface allows you to understand
-              rule dependencies at a glance, making it easier to manage and optimize your WAF
-              configuration.
-            </p>
-            <button ref={visualizationBtnRef} onClick={() => navigate('/app/visualization')} style={{ ...styles.actionButton, background: darkTheme ? '#444' : '#220d4e', color: darkTheme ? '#fff' : '#fff', border: darkTheme ? '2px solid #fff' : '2px solid #220d4e' }}>
-              Explore Visualization
-            </button>
-          </section>
-          <section id="analysis" style={{ ...styles.section, background: darkTheme ? 'rgba(30,30,30,0.7)' : 'rgba(255,255,255,0.5)', color: darkTheme ? '#fff' : '#220d4e' }}>
-            <h2 style={{ ...styles.sectionTitle, color: darkTheme ? '#fff' : '#220d4e' }}>Dependency Analysis</h2>
-            <p style={{ ...styles.sectionText, color: darkTheme ? '#eee' : '#333' }}>
-              Explore the intricate relationships between your WAF rules through our interactive
-              visualization tool. This powerful graph-based interface allows you to understand
-              rule dependencies at a glance, making it easier to manage and optimize
-              your WAF configuration.
-            </p>
-            <button ref={analysisBtnRef} onClick={() => navigate('/app/debugger')} style={{ ...styles.actionButton, background: darkTheme ? '#444' : '#220d4e', color: darkTheme ? '#fff' : '#fff', border: darkTheme ? '2px solid #fff' : '2px solid #220d4e' }}>
-              Analyze Dependencies
-            </button>
-          </section>
-          <section id="about" style={{ ...styles.section, background: darkTheme ? 'rgba(30,30,30,0.7)' : 'rgba(255,255,255,0.5)', color: darkTheme ? '#fff' : '#220d4e' }}>
-            <h2 style={{ ...styles.sectionTitle, color: darkTheme ? '#fff' : '#220d4e' }}>About AWS WAF Visualization</h2>
-            <p style={{ ...styles.sectionText, color: darkTheme ? '#eee' : '#333' }}>
-              Our tool simplifies the complex task of managing AWS WAF rules by providing
-              intuitive visualization and analysis capabilities. Whether you're managing a small
-              set of rules or a complex enterprise configuration, our tool helps you understand
-              and optimize your security setup.
-            </p>
-            <button ref={aboutBtnRef} onClick={() => navigate('/about')} style={{ ...styles.actionButton, background: darkTheme ? '#444' : '#220d4e', color: darkTheme ? '#fff' : '#fff', border: darkTheme ? '2px solid #fff' : '2px solid #220d4e' }}>
-              Learn More
-            </button>
-          </section>
+
+      {/* Hero Section */}
+      <section style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+        position: 'relative',
+        zIndex: 1
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          width: '100%',
+          textAlign: 'center',
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
+          transition: 'all 0.8s ease-out'
+        }}>
+          <h1 style={{
+            fontSize: '3.5rem',
+            fontWeight: 700,
+            marginBottom: '1.5rem',
+            color: darkTheme ? '#fff' : '#333',
+            textShadow: darkTheme ? '0 2px 10px rgba(0,0,0,0.5)' : '0 2px 10px rgba(0,0,0,0.1)',
+            lineHeight: 1.2
+          }}>
+            Visualize & Optimize Your
+            <br />
+            <span style={{
+              background: 'linear-gradient(45deg, #1976d2, #2e7d32)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              AWS WAF Rules
+            </span>
+          </h1>
+          
+          <p style={{
+            fontSize: '1.25rem',
+            maxWidth: '800px',
+            margin: '0 auto 3rem',
+            lineHeight: 1.6,
+            color: darkTheme ? '#e0e0e0' : '#666',
+            textShadow: darkTheme ? '0 1px 3px rgba(0,0,0,0.3)' : 'none'
+          }}>
+            Transform complex WAF configurations into clear, actionable insights. 
+            Discover relationships, test rules, and optimize your security setup with our powerful visualization tools.
+          </p>
+
+          <button
+            onClick={() => navigate('/app/visualization')}
+            style={{
+              background: 'linear-gradient(45deg, #1976d2, #2e7d32)',
+              color: '#fff',
+              border: 'none',
+              padding: '1rem 2.5rem',
+              borderRadius: '50px',
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 8px 25px rgba(25, 118, 210, 0.3)',
+              transition: 'all 0.3s ease',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 12px 35px rgba(25, 118, 210, 0.4)'
+              }
+            }}
+          >
+            Start Visualizing
+            <ArrowForwardIcon />
+          </button>
         </div>
-      </div>
+      </section>
+
+      {/* Features Section */}
+      <section style={{
+        padding: '4rem 2rem',
+        position: 'relative',
+        zIndex: 1
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto'
+        }}>
+          <h2 style={{
+            fontSize: '2.5rem',
+            fontWeight: 700,
+            textAlign: 'center',
+            marginBottom: '3rem',
+            color: darkTheme ? '#fff' : '#333'
+          }}>
+            Powerful Tools for WAF Management
+          </h2>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+            gap: '2rem',
+            marginBottom: '4rem'
+          }}>
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                onClick={feature.action}
+                style={{
+                  background: darkTheme ? 'rgba(40,40,40,0.8)' : 'rgba(255,255,255,0.9)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: '20px',
+                  padding: '2.5rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  border: `1px solid ${darkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.15)'
+                  }
+                }}
+              >
+                <div style={{
+                  color: feature.color,
+                  marginBottom: '1.5rem'
+                }}>
+                  {feature.icon}
+                </div>
+                <h3 style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 600,
+                  marginBottom: '1rem',
+                  color: darkTheme ? '#fff' : '#333'
+                }}>
+                  {feature.title}
+                </h3>
+                <p style={{
+                  fontSize: '1rem',
+                  lineHeight: 1.6,
+                  color: darkTheme ? '#ccc' : '#666',
+                  marginBottom: '1.5rem'
+                }}>
+                  {feature.description}
+                </p>
+                <button
+                  style={{
+                    background: 'transparent',
+                    border: `2px solid ${feature.color}`,
+                    color: feature.color,
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '25px',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      background: feature.color,
+                      color: '#fff'
+                    }
+                  }}
+                >
+                  Explore
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section style={{
+        padding: '4rem 2rem',
+        background: darkTheme ? 'rgba(30,30,30,0.8)' : 'rgba(250,250,250,0.8)',
+        backdropFilter: 'blur(10px)',
+        position: 'relative',
+        zIndex: 1
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto'
+        }}>
+          <h2 style={{
+            fontSize: '2.5rem',
+            fontWeight: 700,
+            textAlign: 'center',
+            marginBottom: '3rem',
+            color: darkTheme ? '#fff' : '#333'
+          }}>
+            Why Choose Our Tool?
+          </h2>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '2rem'
+          }}>
+            {benefits.map((benefit, index) => (
+              <div
+                key={index}
+                style={{
+                  textAlign: 'center',
+                  padding: '2rem'
+                }}
+              >
+                <div style={{
+                  color: '#1976d2',
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  justifyContent: 'center'
+                }}>
+                  {benefit.icon}
+                </div>
+                <h3 style={{
+                  fontSize: '1.3rem',
+                  fontWeight: 600,
+                  marginBottom: '1rem',
+                  color: darkTheme ? '#fff' : '#333'
+                }}>
+                  {benefit.title}
+                </h3>
+                <p style={{
+                  fontSize: '1rem',
+                  lineHeight: 1.6,
+                  color: darkTheme ? '#ccc' : '#666'
+                }}>
+                  {benefit.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section style={{
+        padding: '4rem 2rem',
+        textAlign: 'center',
+        position: 'relative',
+        zIndex: 1
+      }}>
+        <div style={{
+          maxWidth: '800px',
+          margin: '0 auto'
+        }}>
+          <h2 style={{
+            fontSize: '2.5rem',
+            fontWeight: 700,
+            marginBottom: '1.5rem',
+            color: darkTheme ? '#fff' : '#333'
+          }}>
+            Ready to Transform Your WAF Management?
+          </h2>
+          <p style={{
+            fontSize: '1.1rem',
+            marginBottom: '2rem',
+            color: darkTheme ? '#ccc' : '#666',
+            lineHeight: 1.6
+          }}>
+            Join security professionals who are already using our tools to optimize their AWS WAF configurations.
+          </p>
+          <button
+            onClick={() => navigate('/app/visualization')}
+            style={{
+              background: 'linear-gradient(45deg, #1976d2, #2e7d32)',
+              color: '#fff',
+              border: 'none',
+              padding: '1rem 2.5rem',
+              borderRadius: '50px',
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 8px 25px rgba(25, 118, 210, 0.3)',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 12px 35px rgba(25, 118, 210, 0.4)'
+              }
+            }}
+          >
+            Get Started Now
+          </button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer style={{
+        padding: '2rem',
+        background: darkTheme ? 'rgba(20,20,20,0.9)' : 'rgba(240,240,240,0.9)',
+        backdropFilter: 'blur(10px)',
+        borderTop: `1px solid ${darkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+        position: 'relative',
+        zIndex: 1
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          textAlign: 'center',
+          color: darkTheme ? '#ccc' : '#666'
+        }}>
+          <p style={{ margin: 0 }}>
+            © 2024 AWS WAF Visualization Tool. Built for security professionals.
+          </p>
+        </div>
+      </footer>
     </div>
   );
-}
-
-// Dynamic styles generator based on darkTheme
-function getStyles(darkTheme) {
-  return {
-    mainContainer: {
-      fontFamily: "'Poppins', sans-serif",
-      width: '100%',
-      height: '100%',
-      background: darkTheme
-        ? `linear-gradient(rgba(34,34,34,0.95), rgba(34,34,34,0.95)), url(${backgroundImage}) no-repeat center center / cover`
-        : `url(${backgroundImage}) no-repeat center center / cover`,
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      overflowX: 'hidden',
-      transition: 'background 0.5s',
-    },
-    nav: {
-      position: 'sticky',
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 1000,
-      height: '70px',
-      display: 'sticky',
-      alignItems: 'center',
-      transition: 'background 0.3s ease, box-shadow 0.3s ease',
-    },
-    navContent: {
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '0 1.5rem',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      width: '100%',
-    },
-    logoImage: {
-      height: '100px',
-      cursor: 'pointer',
-    },
-    navLinks: {
-      display: 'flex',
-      gap: '1rem',
-    },
-    navButton: {
-      background: 'transparent',
-      color: '#220d4e',
-      border: 'none',
-      padding: '0.5rem 1rem',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '1rem',
-      transition: 'background 0.2s ease',
-    },
-    signInButton: {
-      background: 'transparent',
-      color: '#220d4e',
-      border: 'none',
-      padding: '0.5rem 1rem',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontSize: '1rem',
-      transition: 'background 0.2s ease',
-    },
-    signInIcon: {
-      width: '24px',
-      height: '24px',
-      display: 'block',
-    },
-    container: {
-      width: '100%',
-      paddingTop: '70px',
-      position: 'relative',
-      minHeight: '100%',
-    },
-    welcomeSection: {
-      minHeight: '90vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '3rem',
-      background: 'transparent',
-      textAlign: 'center',
-    },
-    welcomeContent: {
-      maxWidth: '1200px',
-      width: '100%',
-      color: '#220d4e',
-    },
-    welcomeTitle: {
-      fontSize: '3.5rem',
-      marginBottom: '1.5rem',
-      fontWeight: 700,
-      lineHeight: 1.2,
-      textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-    },
-    welcomeText: {
-      fontSize: '1.25rem',
-      maxWidth: '800px',
-      lineHeight: 1.6,
-      textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-      margin: '0 auto',
-    },
-    welcomeCards: {
-      display: 'flex',
-      justifyContent: 'center',
-      gap: '2rem',
-      flexWrap: 'wrap',
-      marginTop: '2rem',
-    },
-    welcomeCard: {
-      background: darkTheme ? 'rgba(40,40,40,0.7)' : 'rgba(255, 255, 255, 0.5)',
-      padding: '2rem',
-      borderRadius: '15px',
-      width: '250px',
-      transition: 'transform 0.3s ease',
-      cursor: 'pointer',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      border: darkTheme ? '3px solid #fff' : '3px solid #220d4e',
-    },
-    cardIcon: {
-      marginBottom: '1rem',
-    },
-    cardTitle: {
-      color: darkTheme ? '#fff' : '#220d4e',
-      fontSize: '1.2rem',
-      fontWeight: 600,
-      margin: 0,
-      textAlign: 'center',
-    },
-    content: {
-      width: '100%',
-      margin: '0 auto',
-      padding: '2rem',
-      color: darkTheme ? '#fff' : '#220d4e',
-      transition: 'all 0.8s ease-out',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-    },
-    section: {
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: '4rem 2rem',
-      width: '100%',
-      background: darkTheme ? 'rgba(30,30,30,0.7)' : 'rgba(255, 255, 255, 0.5)',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-      marginBottom: '2rem',
-      color: darkTheme ? '#fff' : '#220d4e',
-    },
-    sectionTitle: {
-      fontSize: '2.2rem',
-      marginBottom: '1.5rem',
-      fontWeight: 700,
-      color: darkTheme ? '#fff' : '#220d4e',
-    },
-    sectionText: {
-      fontSize: '1.1rem',
-      maxWidth: '800px',
-      textAlign: 'center',
-      marginBottom: '2rem',
-      lineHeight: 1.6,
-      color: darkTheme ? '#eee' : '#333',
-    },
-    actionButton: {
-      background: darkTheme ? '#444' : '#220d4e',
-      color: '#FFFFFF',
-      border: darkTheme ? '2px solid #fff' : '2px solid #220d4e',
-      padding: '0.9rem 2rem',
-      borderRadius: '30px',
-      fontSize: '1.1rem',
-      cursor: 'pointer',
-      transition: 'all 0.3s ease',
-    },
-    modalOverlay: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 2000,
-    },
-    modalContent: {
-      background: '#FFFFFF',
-      padding: '2rem',
-      borderRadius: '8px',
-      position: 'relative',
-      width: '300px',
-      boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-      textAlign: 'center',
-      color: '#220d4e',
-    },
-    closeModalButton: {
-      position: 'absolute',
-      top: '0.5rem',
-      right: '0.5rem',
-      background: 'transparent',
-      border: 'none',
-      fontSize: '1.2rem',
-      color: '#220d4e',
-      cursor: 'pointer',
-    },
-    modalTitle: {
-      margin: '0 0 1rem 0',
-      fontWeight: 600,
-    },
-    signInForm: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '1rem',
-      marginTop: '1rem',
-    },
-    inputField: {
-      padding: '0.5rem',
-      borderRadius: '4px',
-      border: '1px solid #CCC',
-      background: '#F6F3FD',
-      color: '#333',
-      width: '100%',
-    },
-    submitButton: {
-      background: '#220d4e',
-      color: '#FFFFFF',
-      border: 'none',
-      padding: '0.75rem',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      fontWeight: 600,
-    },
-  };
 }
 
 export default Home;

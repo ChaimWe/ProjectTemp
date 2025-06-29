@@ -3,7 +3,6 @@ import RequestDebugger from '../debugger/RequestDebugger';
 import Sidebar from '../components/layout/Sidebar';
 import { useState, useEffect } from 'react';
 import backgroundImage from '../assets/pexels-scottwebb-1029624.jpg';
-import logo from '../assets/1002079229-removebg-preview.png';
 import WAFView, { normalizeRulesData } from '../components/WAFView/WAFView';
 import { useOutletContext } from 'react-router-dom';
 import { useThemeContext } from '../context/ThemeContext';

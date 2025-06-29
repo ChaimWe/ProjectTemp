@@ -19,7 +19,8 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   ChevronLeft as ChevronLeftIcon,
-  BugReport as DebugIcon
+  BugReport as DebugIcon,
+  SmartToy as AIIcon
 } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
 import { useThemeContext } from '../../context/ThemeContext';
@@ -42,6 +43,7 @@ export default function Sidebar({ view, setView }) {
     { key: 'home', label: 'Home', icon: <HomeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/') },
     { key: 'tree', label: 'WAF Tree', icon: <TreeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/app/visualization') },
     { key: 'debugger', label: 'Request Debugger', icon: <DebugIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/debugger') },
+    { key: 'ai', label: 'AI Assistant', icon: <AIIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/ai') },
   ];
 
   return (

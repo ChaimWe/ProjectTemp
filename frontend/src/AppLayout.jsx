@@ -81,6 +81,8 @@ export default function AppLayout() {
   // Determine which section is active for TopBar
   const aclDetails = location.pathname.includes('debugger')
     ? { aclName: 'Request Debugger' }
+    : location.pathname.includes('ai')
+    ? { aclName: 'AI Assistant' }
     : { aclName: 'WAF Rules' };
 
   return (
@@ -111,7 +113,10 @@ export default function AppLayout() {
         setTreeStyle={setTreeStyle}
       />
       <Box sx={{ display: 'flex', width: '100vw', height: '100vh', pt: '70px', background: 'none', backgroundColor: 'none', m: 0, p: 0 }}>
-        <Sidebar view={location.pathname.includes('debugger') ? 'debugger' : 'tree'} setView={v => navigate(v === 'debugger' ? '/app/debugger' : '/app/visualization')} />
+        <Sidebar 
+          view={location.pathname.includes('debugger') ? 'debugger' : location.pathname.includes('ai') ? 'ai' : 'tree'} 
+          setView={v => navigate(v === 'debugger' ? '/app/debugger' : v === 'ai' ? '/app/ai' : '/app/visualization')} 
+        />
         <Box sx={{ flex: 1, overflow: 'auto', background: 'none', backgroundColor: 'none', m: 0, p: 0 }}>
           <Outlet context={{
             exportToPdf,

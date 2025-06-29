@@ -13,11 +13,6 @@ const styleInstructions = {
   json: 'Return only a JSON object as specified.'
 };
 
-/**
- * Parses markdown table text and extracts header and rows
- * @param {string} md - Markdown table string
- * @returns {Object|null} Object with header and rows arrays, or null if invalid
- */
 function parseMarkdownTable(md) {
   const lines = md.trim().split(/\r?\n/).filter(line => line.trim().startsWith('|'));
   if (lines.length < 2) return null;
@@ -26,11 +21,6 @@ function parseMarkdownTable(md) {
   return { header, rows };
 }
 
-/**
- * Renders a markdown table as HTML table with styling
- * @param {string} md - Markdown table string
- * @returns {JSX.Element} Styled HTML table
- */
 function renderMarkdownTable(md) {
   const table = parseMarkdownTable(md);
   if (!table) return <span>{md}</span>;
@@ -56,15 +46,9 @@ function renderMarkdownTable(md) {
   );
 }
 
-/**
- * Renders JSON text as formatted code block
- * @param {string} text - JSON string (may be wrapped in code blocks)
- * @returns {JSX.Element} Formatted JSON display
- */
 function renderJsonBlock(text) {
   let json = null;
   try {
-    // Extract JSON from code block or plain text
     const match = text.match(/```json([\s\S]*?)```/i);
     if (match) {
       json = JSON.parse(match[1]);
@@ -77,17 +61,15 @@ function renderJsonBlock(text) {
   return <pre style={{ background: '#f5f5f5', padding: 8, borderRadius: 4 }}>{JSON.stringify(json, null, 2)}</pre>;
 }
 
-/**
- * AI Assistant Chat Popup Component
- * Provides an interactive chat interface for asking questions about WAF rules
- */
-const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }) => {
+export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = false }) {
   const { getColor } = useThemeContext();
   const messagesEndRef = useRef(null);
-  
+
   // Chat state management
   const [messages, setMessages] = useState([
-    { sender: 'ai', text: 'Hi! Ask me anything about this rule and I will help you understand or improve it.' }
+    { sender: 'ai', text: isAIPage
+      ? 'Hi! Ask me anything about your WAF rules and I will help you understand, analyze, or improve them.'
+      : 'Hi! Ask me anything about this rule and I will help you understand or improve it.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -102,97 +84,68 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
   const ruleId = String(rule?.id || '');
   const parentIds = edges.filter(e => String(e.target) === ruleId).map(e => String(e.source));
   const childIds = edges.filter(e => String(e.source) === ruleId).map(e => String(e.target));
-  
-  // Match rules by their position in the array (since edges use array indices as IDs)
   const parentRules = (allRules || []).filter((r, index) => parentIds.includes(String(index)));
   const childRules = (allRules || []).filter((r, index) => childIds.includes(String(index)));
-  
   const parentNames = parentRules.map(r => r.Name).join(', ') || 'None';
   const childNames = childRules.map(r => r.Name).join(', ') || 'None';
 
-  /**
-   * Scrolls to the bottom of the messages container with dynamic timing
-   * Duration is calculated based on response length and selected speed
-   */
+  // Scroll logic
   const scrollToBottom = () => {
     if (scrollSpeed !== 'none' && messagesEndRef.current) {
       const container = messagesEndRef.current.parentElement;
-      
-      // Calculate scroll duration based on response length and selected speed
       const lastMessage = messages[messages.length - 1];
       const responseLength = lastMessage?.text?.length || 0;
-      
-      // Base duration per character (in milliseconds) 
       const baseDurationPerChar = {
-        slow: 24.0,    // 24000ms per character 
-        normal: 12.0,  // 12000ms per character 
-        fast: 8.0,     // 8000ms per character 
-        instant: 0     // No animation
+        slow: 24.0,
+        normal: 12.0,
+        fast: 8.0,
+        instant: 0
       }[scrollSpeed] || 12.0;
-
       const scrollDuration = scrollSpeed === 'instant' ? 0 : Math.max(8000, responseLength * baseDurationPerChar);
 
       if (scrollDuration === 0) {
-        // Instant scroll
         messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
         setUserScrolledUp(false);
       } else {
-        // Custom smooth scroll with calculated duration
         const startTime = performance.now();
         const startScrollTop = container.scrollTop;
         const targetScrollTop = container.scrollHeight - container.clientHeight;
         const distance = targetScrollTop - startScrollTop;
-
         const animateScroll = (currentTime) => {
           const elapsed = currentTime - startTime;
           const progress = Math.min(elapsed / scrollDuration, 1);
-          
-          // Easing function for smooth animation
           const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-          
-          // Only auto-scroll if user hasn't manually scrolled up
           if (!userScrolledUp) {
             const expectedScrollTop = startScrollTop + (distance * easeOutQuart);
             container.scrollTop = expectedScrollTop;
           }
-          
           if (progress < 1 && !userScrolledUp) {
             requestAnimationFrame(animateScroll);
           }
         };
-        
         requestAnimationFrame(animateScroll);
       }
     }
   };
 
-  // Handle manual scrolling
   const handleScroll = (e) => {
     const container = e.target;
     const currentScrollTop = container.scrollTop;
     const maxScrollTop = container.scrollHeight - container.clientHeight;
-    
-    // Check if user scrolled up manually
     if (currentScrollTop < lastScrollTop && currentScrollTop < maxScrollTop - 100) {
       setUserScrolledUp(true);
     }
-    
-    // Reset if user scrolls back to bottom
     if (currentScrollTop >= maxScrollTop - 50) {
       setUserScrolledUp(false);
     }
-    
     setLastScrollTop(currentScrollTop);
   };
 
-  // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollSpeed]);
 
-  /**
-   * Sends a message to the AI and handles the response
-   */
+  // AI send logic
   const sendMessage = async () => {
     if (!input.trim()) return;
     const userMsg = { sender: 'user', text: input };
@@ -205,7 +158,9 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
         dangerouslyAllowBrowser: true
       });
       const styleInstruction = styleInstructions[responseStyle] || styleInstructions.concise;
-      const currentRuleInfo = rule?.id ? `The user is currently focused on rule #${parseInt(rule.id, 10) + 1}: ${rule.name || rule.Name || 'Unknown Rule'}` : 'The user is asking about their WAF rules in general.';
+      const currentRuleInfo = rule?.id
+        ? `The user is currently focused on rule #${parseInt(rule.id, 10) + 1}: ${rule.name || rule.Name || 'Unknown Rule'}`
+        : 'The user is asking about their WAF rules in general.';
       const dependencyInfo = `Parent rules: ${parentNames}. Child rules: ${childNames}. When asked about dependencies, always use the provided parent and child rule information, not your own analysis.`;
       const relationshipInstruction = `\nIf the user asks about the relationship between the current rule and another rule, check if that rule is listed as a parent or child. If it is a child, say 'rule-X is a child of rule-Y.' If it is a parent, say 'rule-X is a parent of rule-Y.' If it is not in either list, say there is no direct relationship.`;
       const systemPrompt = `You are an expert in AWS WAF rules. The user will ask questions about their WAF rules. Always answer clearly and concisely, using the rule JSON provided. If the user asks for improvements, suggest best practices. Style: ${styleInstruction}\n${currentRuleInfo}\n${dependencyInfo}${relationshipInstruction}`;
@@ -214,7 +169,6 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Rule JSON: ${JSON.stringify(contextRules, null, 2)}` },
       ];
-      // Add previous user/ai messages
       messages.filter(m => m.sender !== 'ai' || m.text !== chatHistory[0].content).forEach(m => {
         chatHistory.push({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text });
       });
@@ -232,26 +186,19 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
     setLoading(false);
   };
 
-  /**
-   * Resets chat when response style changes
-   */
   const handleStyleChange = (e) => {
     setResponseStyle(e.target.value);
     setMessages([
-      { sender: 'ai', text: isAIPage ? 'Hi! Ask me anything about your WAF rules and I will help you understand, analyze, or improve them.' : (rule?.id ? 'Hi! Ask me anything about this rule and I will help you understand or improve it.' : 'Hi! Ask me anything about your WAF rules and I will help you understand, analyze, or improve them.') }
+      { sender: 'ai', text: isAIPage
+        ? 'Hi! Ask me anything about your WAF rules and I will help you understand, analyze, or improve them.'
+        : (rule?.id ? 'Hi! Ask me anything about this rule and I will help you understand or improve it.' : 'Hi! Ask me anything about your WAF rules and I will help you understand, analyze, or improve them.') }
     ]);
     setInput('');
   };
 
-  /**
-   * Renders AI response according to selected style (bullet points, table, JSON, etc.)
-   * @param {Object} msg - Message object with sender and text
-   * @returns {JSX.Element} Formatted message content
-   */
   const renderAiMessage = (msg) => {
     if (msg.sender !== 'ai') return <span>{msg.text}</span>;
     if (responseStyle === 'bullet') {
-      // Split on newlines or dashes
       const lines = msg.text
         .split(/\n|\r/)
         .map(line => line.trim())
@@ -270,9 +217,7 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
     if (responseStyle === 'json') {
       return renderJsonBlock(msg.text);
     }
-    // For detailed, human, concise: add bold headings if present
     if (['detailed', 'human', 'concise'].includes(responseStyle)) {
-      // Convert markdown headings to bold
       const html = msg.text.replace(/^(#+)\s*(.*)$/gm, (m, hashes, title) => `<b>${title.trim()}</b>`)
         .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
         .replace(/\n/g, '<br/>');
@@ -281,79 +226,33 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
     return <span>{msg.text}</span>;
   };
 
-  /**
-   * Handles clicking the overlay to close the popup
-   */
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
   return (
-    <Box
-      sx={{
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 2000,
-        background: `linear-gradient(135deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.3) 100%)`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(4px)',
-        animation: 'fadeIn 0.3s ease-out',
-        '@keyframes fadeIn': {
-          '0%': { opacity: 0 },
-          '100%': { opacity: 1 }
-        }
-      }}
-      onClick={handleOverlayClick}
-    >
-      <Paper 
-        sx={{ 
-          width: 550, 
-          maxWidth: '95vw', 
-          height: '85vh',
-          maxHeight: '85vh', 
-          p: 3, 
-          borderRadius: 3, 
-          boxShadow: `0 20px 40px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.05)`,
-          display: 'flex', 
-          flexDirection: 'column',
-          background: getColor('barBackground'),
-          border: `1px solid ${getColor('border')}`,
-          position: 'relative',
-          overflow: 'auto',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '4px',
-            background: 'linear-gradient(90deg, rgba(25, 118, 210, 0.6) 0%, rgba(46, 125, 50, 0.6) 50%, rgba(0, 137, 123, 0.6) 100%)',
-            borderRadius: '12px 12px 0 0'
-          },
-          animation: 'slideIn 0.4s ease-out',
-          '@keyframes slideIn': {
-            '0%': { opacity: 0, transform: 'scale(0.9) translateY(20px)' },
-            '100%': { opacity: 1, transform: 'scale(1) translateY(0)' }
-          },
-          '&::-webkit-scrollbar': {
-            width: '8px',
-          },
-          '&::-webkit-scrollbar-track': {
-            background: 'rgba(0,0,0,0.05)',
-            borderRadius: '4px',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            background: 'linear-gradient(180deg, rgba(25, 118, 210, 0.4), rgba(46, 125, 50, 0.4))',
-            borderRadius: '4px',
-            '&:hover': {
-              background: 'linear-gradient(180deg, rgba(25, 118, 210, 0.6), rgba(46, 125, 50, 0.6))',
-            },
-          },
-        }}
-      >
-        <Typography 
-          variant="h6" 
-          sx={{ 
+    <Box sx={{
+      width: '100%',
+      maxWidth: 900,
+      margin: '0 auto',
+      mt: 4,
+      mb: 4,
+      p: 2,
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '70vh'
+    }}>
+      <Paper sx={{
+        width: '100%',
+        p: 3,
+        borderRadius: 3,
+        boxShadow: `0 8px 32px rgba(25,118,210,0.08)`,
+        display: 'flex',
+        flexDirection: 'column',
+        background: getColor('barBackground'),
+        border: `1px solid ${getColor('border')}`,
+        position: 'relative',
+        minHeight: '60vh'
+      }}>
+        <Typography
+          variant="h6"
+          sx={{
             mb: 2,
             background: 'linear-gradient(45deg, rgba(25, 118, 210, 0.7), rgba(46, 125, 50, 0.7))',
             backgroundClip: 'text',
@@ -366,7 +265,7 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
         >
           {isAIPage ? '🤖 AI Assistant for WAF Rules' : '🤖 AI Assistant for this Rule'}
         </Typography>
-        
+
         {/* Tab Navigation */}
         <Box sx={{ display: 'flex', mb: 2, borderBottom: `1px solid ${getColor('border')}` }}>
           <Button
@@ -374,7 +273,7 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
             sx={{
               flex: 1,
               background: activeTab === 'chat' ? 'linear-gradient(45deg, rgba(25, 118, 210, 0.3), rgba(46, 125, 50, 0.3))' : 'transparent',
-              color: activeTab === 'chat' ? getColor('barText') : getColor('barText'),
+              color: getColor('barText'),
               borderRadius: 0,
               borderBottom: activeTab === 'chat' ? '3px solid rgba(25, 118, 210, 0.6)' : 'none',
               fontWeight: 'bold',
@@ -392,7 +291,7 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
             sx={{
               flex: 1,
               background: activeTab === 'settings' ? 'linear-gradient(45deg, rgba(25, 118, 210, 0.3), rgba(46, 125, 50, 0.3))' : 'transparent',
-              color: activeTab === 'settings' ? getColor('barText') : getColor('barText'),
+              color: getColor('barText'),
               borderRadius: 0,
               borderBottom: activeTab === 'settings' ? '3px solid rgba(25, 118, 210, 0.6)' : 'none',
               fontWeight: 'bold',
@@ -406,6 +305,46 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
             ⚙️ Settings
           </Button>
         </Box>
+
+        {/* Chat Tab */}
+        {activeTab === 'chat' && (
+          <Box sx={{ flex: 1, overflow: 'auto', mb: 2, minHeight: 300, maxHeight: 400 }} onScroll={handleScroll}>
+            {messages.map((msg, idx) => (
+              <Box
+                key={idx}
+                sx={{
+                  display: 'flex',
+                  justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+                  mb: 1
+                }}
+              >
+                <Box
+                  sx={{
+                    background: msg.sender === 'user'
+                      ? 'linear-gradient(90deg, #1976d2 0%, #2e7d32 100%)'
+                      : 'rgba(25, 118, 210, 0.08)',
+                    color: msg.sender === 'user' ? '#fff' : getColor('barText'),
+                    px: 2,
+                    py: 1,
+                    borderRadius: 2,
+                    maxWidth: '80%',
+                    boxShadow: msg.sender === 'user'
+                      ? '0 2px 8px rgba(25,118,210,0.12)'
+                      : '0 1px 4px rgba(25,118,210,0.04)'
+                  }}
+                >
+                  <b>{msg.sender === 'user' ? 'You' : 'AI'}:</b> {renderAiMessage(msg)}
+                </Box>
+              </Box>
+            ))}
+            <div ref={messagesEndRef} />
+            {loading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <CircularProgress size={28} />
+              </Box>
+            )}
+          </Box>
+        )}
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
@@ -492,215 +431,65 @@ const RuleChatPopup = ({ rule, allRules, edges = [], onClose, isAIPage = false }
             <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
               <FormControlLabel
                 control={
-                  <Switch 
-                    checked={seeAllRules} 
-                    onChange={e => setSeeAllRules(e.target.checked)} 
+                  <Switch
+                    checked={seeAllRules}
+                    onChange={e => setSeeAllRules(e.target.checked)}
                     sx={{
                       '& .MuiSwitch-switchBase.Mui-checked': {
                         color: 'rgba(25, 118, 210, 0.7)',
-                        '&:hover': {
-                          backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                        },
-                      },
-                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                        backgroundColor: 'rgba(46, 125, 50, 0.7)',
-                      },
+                      }
                     }}
                   />
                 }
-                label="AI sees all rules"
-                sx={{ 
-                  '& .MuiFormControlLabel-label': { 
-                    fontWeight: 500,
-                    color: getColor('barText')
-                  } 
-                }}
+                label="See All Rules"
               />
             </Box>
           </Box>
         )}
 
-        {/* Chat Area */}
-        <Box 
-          sx={{ 
-            flex: 1, 
-            overflowY: 'auto', 
-            mb: 2, 
-            background: getColor('background'),
-            borderRadius: 2, 
-            p: 2, 
-            minHeight: activeTab === 'chat' ? 400 : 200,
-            maxHeight: activeTab === 'chat' ? '60vh' : '40vh',
-            border: `1px solid ${getColor('border')}`,
-            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
-            '&::-webkit-scrollbar': {
-              width: '8px',
-            },
-            '&::-webkit-scrollbar-track': {
-              background: 'rgba(0,0,0,0.05)',
-              borderRadius: '4px',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              background: 'linear-gradient(180deg, rgba(25, 118, 210, 0.4), rgba(46, 125, 50, 0.4))',
-              borderRadius: '4px',
-              '&:hover': {
-                background: 'linear-gradient(180deg, rgba(25, 118, 210, 0.6), rgba(46, 125, 50, 0.6))',
-              },
-            },
-          }}
-          onScroll={handleScroll}
-        >
-          {messages.map((msg, i) => (
-            <Box 
-              key={i} 
-              sx={{ 
-                mb: 2, 
-                textAlign: msg.sender === 'user' ? 'right' : 'left',
-                animation: 'slideIn 0.5s ease-out',
-                '@keyframes slideIn': {
-                  '0%': { opacity: 0, transform: 'translateY(10px)' },
-                  '100%': { opacity: 1, transform: 'translateY(0)' }
+        {/* Input area */}
+        {activeTab === 'chat' && (
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Type your question..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !loading) sendMessage();
+              }}
+              sx={{
+                mr: 2,
+                background: getColor('background'),
+                borderRadius: 2,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                }
+              }}
+              disabled={loading}
+            />
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              sx={{
+                minWidth: 100,
+                fontWeight: 600,
+                background: 'linear-gradient(45deg, #1976d2, #2e7d32)',
+                color: '#fff',
+                boxShadow: '0 2px 8px rgba(25,118,210,0.12)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #1565c0, #1b5e20)',
                 }
               }}
             >
-              <Typography 
-                variant="body2" 
-                sx={{
-                  color: msg.sender === 'ai' ? 'rgba(25, 118, 210, 0.8)' : getColor('barText'),
-                  fontWeight: 500,
-                  background: msg.sender === 'ai' 
-                    ? 'linear-gradient(135deg, rgba(25, 118, 210, 0.05) 0%, rgba(46, 125, 50, 0.05) 100%)'
-                    : 'linear-gradient(135deg, rgba(0, 123, 255, 0.05) 0%, rgba(0, 86, 179, 0.05) 100%)',
-                  padding: '8px 12px',
-                  borderRadius: '12px',
-                  border: `1px solid ${msg.sender === 'ai' ? 'rgba(25, 118, 210, 0.1)' : 'rgba(0, 123, 255, 0.1)'}`,
-                  display: 'inline-block',
-                  maxWidth: '85%',
-                  wordWrap: 'break-word'
-                }}
-              >
-                <b>{msg.sender === 'ai' ? '🤖 AI:' : '👤 You:'}</b> {renderAiMessage(msg)}
-              </Typography>
-            </Box>
-          ))}
-          {loading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 2 }}>
-              <CircularProgress 
-                size={24} 
-                sx={{ 
-                  color: 'rgba(25, 118, 210, 0.7)',
-                  '& .MuiCircularProgress-circle': {
-                    strokeLinecap: 'round',
-                  }
-                }} 
-              />
-            </Box>
-          )}
-          <div ref={messagesEndRef} />
-        </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <TextField
-            fullWidth
-            size="small"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !loading && sendMessage()}
-            placeholder="Ask about this rule..."
-            disabled={loading}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-                backgroundColor: getColor('background'),
-                '&:hover fieldset': {
-                  borderColor: 'rgba(25, 118, 210, 0.4)',
-                  borderWidth: '2px',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'rgba(46, 125, 50, 0.4)',
-                  borderWidth: '2px',
-                },
-                '&:hover': {
-                  transform: 'translateY(-1px)',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 4px 12px rgba(25, 118, 210, 0.08)',
-                },
-              },
-              '& .MuiInputBase-input': {
-                fontWeight: 500,
-                color: getColor('barText'),
-              }
-            }}
-          />
-          <Button 
-            onClick={sendMessage} 
-            disabled={loading || !input.trim()} 
-            variant="contained"
-            sx={{
-              background: 'linear-gradient(45deg, rgba(25, 118, 210, 0.3) 30%, rgba(46, 125, 50, 0.3) 90%)',
-              boxShadow: '0 6px 20px rgba(25, 118, 210, 0.2)',
-              borderRadius: 2,
-              fontWeight: 'bold',
-              textTransform: 'none',
-              minWidth: '80px',
-              color: getColor('barText'),
-              textShadow: '0 1px 2px rgba(0,0,0,0.1)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, rgba(25, 118, 210, 0.4) 30%, rgba(46, 125, 50, 0.4) 90%)',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 8px 25px rgba(25, 118, 210, 0.3)',
-              },
-              '&:disabled': {
-                background: 'linear-gradient(45deg, rgba(204, 204, 204, 0.3) 30%, rgba(153, 153, 153, 0.3) 90%)',
-                boxShadow: 'none',
-                transform: 'none',
-                color: 'rgba(102, 102, 102, 0.7)',
-              },
-              transition: 'all 0.3s ease',
-            }}
-          >
-            Send
-          </Button>
-        </Box>
-        <Button 
-          onClick={onClose} 
-          sx={{ 
-            mt: 1,
-            background: 'linear-gradient(45deg, rgba(25, 118, 210, 0.6) 30%, rgba(46, 125, 50, 0.6) 90%)',
-            boxShadow: '0 6px 20px rgba(25, 118, 210, 0.3)',
-            borderRadius: 2,
-            fontWeight: 'bold',
-            textTransform: 'none',
-            color: '#ffffff',
-            textShadow: '0 1px 3px rgba(0,0,0,0.3)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            '&:hover': {
-              background: 'linear-gradient(45deg, rgba(25, 118, 210, 0.8) 30%, rgba(46, 125, 50, 0.8) 90%)',
-              transform: 'translateY(-2px)',
-              boxShadow: '0 8px 25px rgba(25, 118, 210, 0.4)',
-            },
-            transition: 'all 0.3s ease',
-          }} 
-          color="secondary"
-        >
-          Close
-        </Button>
+              {loading ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Send'}
+            </Button>
+          </Box>
+        )}
       </Paper>
     </Box>
   );
-};
-
-/**
- * AIChatPanel - Full-page AI chat panel for the AI Assistant page
- * Reuses the chat UI and logic from RuleChatPopup, but as a full-page panel
- */
-export function AIChatPanel({ rule, allRules, edges = [], isAIPage = false }) {
-  // Copy all state, logic, and handlers from RuleChatPopup, but remove modal/popup logic
-  // (Copy everything except the overlay/modal return, and use a normal Box/Paper layout)
-  // ...
-  // (Copy all state, useEffect, handlers, and the chat UI JSX)
-  // ...
-  // Replace the return with a full-page Box/Paper layout
-  // ...
 }
-
-export default RuleChatPopup; 
