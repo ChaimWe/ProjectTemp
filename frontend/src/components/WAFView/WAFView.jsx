@@ -139,6 +139,8 @@ const WAFView = ({
   setViewType,
   treeSetup = 'collapsible',
   setTreeSetup,
+  orderBy = 'name',
+  setOrderBy,
   treeStyle = 'dependency',
   setTreeStyle,
   searchTerm,
@@ -163,27 +165,7 @@ const WAFView = ({
     const [dependencyEdges, setDependencyEdges] = useState([]);
     const [dependencyNodes, setDependencyNodes] = useState([]);
     // Add state for nodesPerRow
-    const [nodesPerRow, setNodesPerRowRaw] = useState(8); // Default 8 per row
-    // Add state for orderBy
-    const [orderBy, setOrderByRaw] = useState('number');
-
-    // Ensure orderBy is always valid
-    useEffect(() => {
-        const validOrderBys = ['number', 'dependency'];
-        if (!validOrderBys.includes(orderBy)) {
-            setOrderByRaw('number');
-        }
-    }, [orderBy]);
-    // Ensure nodesPerRow is always valid
-    useEffect(() => {
-        const validNodesPerRow = Array.from({length: 15}, (_, i) => i + 2);
-        if (!validNodesPerRow.includes(nodesPerRow)) {
-            setNodesPerRowRaw(8);
-        }
-    }, [nodesPerRow]);
-    // Proxy setters for Topbar
-    const setOrderBy = (val) => setOrderByRaw(val);
-    const setNodesPerRow = (val) => setNodesPerRowRaw(val);
+    const [nodesPerRow, setNodesPerRow] = useState(8); // Default 8 per row
     // Add debugging for nodesPerRow
     useEffect(() => {
         console.log('[WAFView] nodesPerRow changed:', nodesPerRow);
@@ -261,8 +243,6 @@ const WAFView = ({
      * Effect: Transforms incoming data into graphData and popupData for visualization.
      */
     useEffect(() => {
-        // Debugging: Log when this effect runs and what it sets
-        console.log('[WAFView] graphData effect running. viewType:', viewType, 'originalRules:', originalRules.length);
         if (!originalRules || originalRules.length === 0) {
             setGraphData(null);
             setPopupData(null);
@@ -306,8 +286,14 @@ const WAFView = ({
                 .filter(e => e && e.source && e.target && e.id)
                 .map(e => ({ ...e, type: 'smoothstep', animated: animatedLines }));
 
-            // Always set graphData for all graph views
-            if (['tree', 'radial', 'angled'].includes(viewType)) {
+            if (viewType === 'tree') {
+                if (!transformedData || !transformedData.nodes) {
+                    throw new Error("Initial transformation failed");
+                }
+                if (!ruleTransformed) {
+                    throw new Error("Rule transformation failed");
+                }
+                // For grid layout, do not assign positions here
                 positionedNodes = baseNodes;
                 finalGraphData = { nodes: positionedNodes, edges: baseEdges.map(e => ({ ...e, type: undefined, animated: animatedLines })) };
                 finalPopupData = {
@@ -336,12 +322,12 @@ const WAFView = ({
                     }
                     return orderDirection === 'asc' ? cmp : -cmp;
                 });
-                // For non-graph views, graphData is empty, but popups still get relationships
+                // For non-tree views, graphData is empty, but popups still get relationships
                 finalGraphData = { nodes: [], edges: [] };
                 finalPopupData = { nodes: sortedRules, globalWarnings: [] };
             }
-            // Debugging: Log what is being set
-            console.log('[WAFView] Setting graphData:', finalGraphData?.nodes?.length, 'nodes,', finalGraphData?.edges?.length, 'edges');
+            
+            // --- Always store dependencyEdges for popups ---
             setGraphData(finalGraphData);
             setPopupData(finalPopupData);
             // Store for popups regardless of viewType
@@ -353,12 +339,6 @@ const WAFView = ({
             setPopupData(null);
         }
     }, [originalRules, setWarningCount, effectiveOrderBy, treeSetup, treeStyle, viewType, animatedLines, orderDirection, orderBy, searchTerm, filterRulesBySearch]);
-
-    // Debugging: Log dependencyNodes and dependencyEdges when AI summary is generated
-    useEffect(() => {
-        console.log('[WAFView] dependencyNodes:', dependencyNodes);
-        console.log('[WAFView] dependencyEdges:', dependencyEdges);
-    }, [dependencyNodes, dependencyEdges]);
 
     /**
      * Handles node selection and opens the rule popup.
@@ -424,9 +404,7 @@ const WAFView = ({
         if (!originalRules || !Array.isArray(originalRules)) {
             return;
         }
-        // Debugging: Log before AI summary
-        console.log('[WAFView] handleChangeAiStyle dependencyNodes:', dependencyNodes);
-        console.log('[WAFView] handleChangeAiStyle dependencyEdges:', dependencyEdges);
+
         // Always use dependency-transformed rules for AI summary
         const transformedData = transformData(originalRules);
 
@@ -521,21 +499,6 @@ const WAFView = ({
     const nodeIds = new Set(sortedNodes.map(n => n.id));
     const validEdges = graphData && Array.isArray(graphData.edges) ? graphData.edges.filter(e => e && nodeIds.has(e.source) && nodeIds.has(e.target)) : [];
 
-    // Debugging output for graph rendering
-    useEffect(() => {
-        console.log('[WAFView] validNodes:', validNodes.length, validNodes);
-        console.log('[WAFView] annotatedNodes:', annotatedNodes.length, annotatedNodes);
-        console.log('[WAFView] sortedNodes:', sortedNodes.length, sortedNodes);
-        console.log('[WAFView] validEdges:', validEdges.length, validEdges);
-    }, [validNodes, annotatedNodes, sortedNodes, validEdges]);
-
-    // Ensure orderBy is always valid for the Topbar select
-    const validOrderBys = ['number', 'dependency'];
-    const safeOrderBy = validOrderBys.includes(orderBy) ? orderBy : 'number';
-    // Ensure nodesPerRow is always valid for the Topbar select
-    const validNodesPerRow = Array.from({length: 15}, (_, i) => i + 2);
-    const safeNodesPerRow = validNodesPerRow.includes(nodesPerRow) ? nodesPerRow : 8;
-
     return (
         <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', overflow: 'hidden' }}>
             {/* Background */}
@@ -598,7 +561,7 @@ const WAFView = ({
                 <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', width: '100%', height: '100%' }}>
                     <Box sx={{ width: 'calc(100% - 144px)', maxWidth: '1400px', margin: '72px 120px 0px 24px', height: 'calc(100vh - 120px)', position: 'relative', background: 'none', backgroundColor: darkTheme ? 'rgba(34, 34, 34, 0.3)' : 'rgba(255, 255, 255, 0.3)', overflow: 'hidden', borderRadius: 0 }}>
                         <ReactFlowProvider>
-                            {(viewType === 'tree' || viewType === 'radial' || viewType === 'angled') && sortedNodes.length > 0 && (
+                            {viewType === 'tree' && sortedNodes.length > 0 && (
                                 <FlowChart
                                     ref={flowRef}
                                     allNodes={sortedNodes}
@@ -609,7 +572,39 @@ const WAFView = ({
                                     showArrows={showArrows}
                                     dottedLines={dottedLines}
                                     animatedLines={animatedLines}
-                                    layoutType={viewType === 'tree' ? 'collapsible' : viewType}
+                                    layoutType="collapsible"
+                                    orderBy={orderBy}
+                                    nodesPerRow={nodesPerRow}
+                                />
+                            )}
+                            {viewType === 'radial' && sortedNodes.length > 0 && (
+                                <FlowChart
+                                    ref={flowRef}
+                                    allNodes={sortedNodes}
+                                    allEdges={validEdges}
+                                    selectedNode={selectedNode}
+                                    setSelectedNode={handleNodeClick}
+                                    searchTerm={searchTerm}
+                                    showArrows={showArrows}
+                                    dottedLines={dottedLines}
+                                    animatedLines={animatedLines}
+                                    layoutType="radial"
+                                    orderBy={orderBy}
+                                    nodesPerRow={nodesPerRow}
+                                />
+                            )}
+                            {viewType === 'angled' && sortedNodes.length > 0 && (
+                                <FlowChart
+                                    ref={flowRef}
+                                    allNodes={sortedNodes}
+                                    allEdges={validEdges}
+                                    selectedNode={selectedNode}
+                                    setSelectedNode={handleNodeClick}
+                                    searchTerm={searchTerm}
+                                    showArrows={showArrows}
+                                    dottedLines={dottedLines}
+                                    animatedLines={animatedLines}
+                                    layoutType="angled"
                                     orderBy={orderBy}
                                     nodesPerRow={nodesPerRow}
                                 />

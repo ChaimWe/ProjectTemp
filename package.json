@@ -15,6 +15,23 @@
     "node": ">=14.0.0"
   },
   "dependencies": {
-    "react-draggable": "^4.4.6"
-  }
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "react-draggable": "^4.4.6",
+    "sqlite3": "^5.1.7"
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChaimWe/AppsFlyerProject.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ChaimWe/AppsFlyerProject/issues"
+  },
+  "homepage": "https://github.com/ChaimWe/AppsFlyerProject#readme"
 }

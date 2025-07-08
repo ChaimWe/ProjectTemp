@@ -9,6 +9,7 @@ import { normalizeRulesData } from './components/WAFView/WAFView';
 import AIChatPanel from './components/popup/AIChatPanel';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import Modal from '@mui/material/Modal';
+import WafAlbVisualizer from './components/tree/WafAlbVisualizer';
 
 /**
  * AppLayout component provides the main layout, top bar, sidebar, and context for the app.
@@ -32,6 +33,8 @@ export default function AppLayout() {
   const [orderBy, setOrderBy] = useState('name'); // name, date, type, etc.
   const [treeStyle, setTreeStyle] = useState('dependency'); // dependency, radial, angled
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  // Example: If using a tab system
+  const [tab, setTab] = useState('Home'); // or whatever your tab state is
 
   /**
    * Handles exporting the flowchart as a PDF file.
@@ -209,6 +212,12 @@ export default function AppLayout() {
           // Optionally, add a snackbar or notification here
         }}
       />
+      {/* Add a new tab button */}
+      <button onClick={() => setTab('WAFALB')}>WAF & ALB Visualizer</button>
+      {/* In the main render area: */}
+      {tab === 'WAFALB' && <WafAlbVisualizer />}
+      {/* If using React Router, add a Route: */}
+      {/* <Route path="/waf-alb-visualizer" element={<WafAlbVisualizer />} /> */}
     </div>
   );
 }

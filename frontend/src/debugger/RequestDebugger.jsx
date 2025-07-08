@@ -49,7 +49,7 @@ import UploadJsonButton from '../components/upload/UploadJsonButton';
  * 3. See which WAF rules would be triggered by the request
  * 4. View detailed information about rule matches
  */
-const RequestDebugger = ({ rules = [] }) => {
+const RequestDebugger = ({ rules = [], albRules = [] }) => {
     // Print a sample of the rules for debugging
     if (Array.isArray(rules)) {
         console.log('[RequestDebugger] Sample rules:', rules.slice(0, 3));
@@ -92,6 +92,10 @@ const RequestDebugger = ({ rules = [] }) => {
     // Combine passed rules with loaded rules
     const allRules = [...safeRules, ...loadedRules];
     const effectiveRules = allRules.filter(r => r && Object.keys(r).length > 0);
+
+    // ALB rules
+    const [albLoadedRules, setAlbLoadedRules] = useState([]);
+    const effectiveAlbRules = [...albRules, ...albLoadedRules].filter(r => r && Object.keys(r).length > 0);
 
     // Fallback UI if no rules are loaded
     if (!effectiveRules.length) {

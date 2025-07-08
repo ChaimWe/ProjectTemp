@@ -56,50 +56,13 @@ const FlowChartInner = forwardRef(({
     const [reactFlowInstanceState, setReactFlowInstance] = useState(null);
     const [isLocked, setIsLocked] = useState(false);
 
-    // Helper: Compute node levels (distance from root) using BFS
-    const computeNodeLevels = (nodes, edges) => {
-        if (!nodes || nodes.length === 0) return {};
-        // Build adjacency and reverse adjacency
-        const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
-        const children = {};
-        const parents = {};
-        nodes.forEach(n => { children[n.id] = []; parents[n.id] = []; });
-        edges.forEach(e => {
-            if (children[e.source]) children[e.source].push(e.target);
-            if (parents[e.target]) parents[e.target].push(e.source);
-        });
-        // Find roots (nodes with no parents)
-        const roots = nodes.filter(n => parents[n.id].length === 0);
-        // BFS from all roots
-        const levels = {};
-        const queue = [];
-        roots.forEach(root => {
-            levels[root.id] = 0;
-            queue.push(root.id);
-        });
-        while (queue.length > 0) {
-            const curr = queue.shift();
-            const currLevel = levels[curr];
-            (children[curr] || []).forEach(childId => {
-                if (!(childId in levels) || levels[childId] > currLevel + 1) {
-                    levels[childId] = currLevel + 1;
-                    queue.push(childId);
-                }
-            });
-        }
-        // For disconnected nodes, assign level 0
-        nodes.forEach(n => { if (!(n.id in levels)) levels[n.id] = 0; });
-        return levels;
-    };
-
     // Layout logic based on layoutType
     const layoutNodes = useCallback((nodes) => {
-        if (!nodes || nodes.length === 0) return [];
         if (layoutType === 'radial') {
-            // All nodes on a single circle
-            const centerX = 600;
+            // Radial layout: position nodes in a circle
+            const centerX = 500;
             const centerY = 400;
-            const radius = 350;
+            const radius = 300;
             const angleStep = (2 * Math.PI) / nodes.length;
             return nodes.map((node, i) => ({
                 ...node,
@@ -109,49 +72,39 @@ const FlowChartInner = forwardRef(({
                 },
             }));
         } else if (layoutType === 'angled') {
-            // Diagonal: each node offset from the previous
-            const startX = 200;
-            const startY = 100;
-            const stepX = 120;
-            const stepY = 80;
-            return nodes.map((node, i) => ({
+            // Angled layout: position nodes in a diagonal (angled) line, then center it
+            const startX = 0;
+            const startY = 0;
+            const step = 40;
+            let nodesCopy = nodes.map((node, i) => ({
                 ...node,
                 position: {
-                    x: startX + i * stepX,
-                    y: startY + i * stepY,
+                    x: startX + i * step,
+                    y: startY + i * step,
                 },
             }));
-        } else {
-            // Default to dependency/hierarchical layout or multi-level for other types
-            const levels = computeNodeLevels(nodes, allEdges);
-            const nodesByLevel = {};
-            nodes.forEach(n => {
-                const lvl = levels[n.id] || 0;
-                if (!nodesByLevel[lvl]) nodesByLevel[lvl] = [];
-                nodesByLevel[lvl].push(n);
+            // Center the diagonal in the viewport
+            const minX = Math.min(...nodesCopy.map(n => n.position.x));
+            const maxX = Math.max(...nodesCopy.map(n => n.position.x));
+            const minY = Math.min(...nodesCopy.map(n => n.position.y));
+            const maxY = Math.max(...nodesCopy.map(n => n.position.y));
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            const desiredCenterX = 600;
+            const desiredCenterY = 400;
+            const offsetX = desiredCenterX - centerX;
+            const offsetY = desiredCenterY - centerY;
+            nodesCopy.forEach(node => {
+                node.position.x += offsetX;
+                node.position.y += offsetY;
             });
-            const maxLevel = Math.max(...Object.keys(nodesByLevel).map(Number));
-            // Layered: each level is a row, spread nodes horizontally
-            const rowHeight = 120;
-            const colWidth = 180;
-            const centerX = 600;
-            let result = [];
-            for (let lvl = 0; lvl <= maxLevel; lvl++) {
-                const nodesAtLevel = nodesByLevel[lvl] || [];
-                const totalWidth = (nodesAtLevel.length - 1) * colWidth;
-                nodesAtLevel.forEach((node, i) => {
-                    result.push({
-                        ...node,
-                        position: {
-                            x: centerX - totalWidth / 2 + i * colWidth,
-                            y: 100 + lvl * rowHeight,
-                        },
-                    });
-                });
-            }
-            return result;
+            return nodesCopy;
+        } else {
+            // Default to dependency/hierarchical layout
+            // (Assume nodes are already positioned by parent)
+            return nodes;
         }
-    }, [layoutType, allEdges]);
+    }, [layoutType]);
 
     // Debugging for nodesPerRow and orderBy
     useEffect(() => {
@@ -412,27 +365,8 @@ const FlowChartInner = forwardRef(({
         const NODES_PER_ROW = Math.max(2, Math.min(nodesPerRow || 8, 16));
         const GRID_SIZE = 180;
         if (layoutType === 'radial' || layoutType === 'angled') {
-            // Debugging: Log nodes before layout
-            console.log('[FlowChart] About to layout', layoutType, 'with', sortedNodes.length, 'nodes:', sortedNodes.map(n => n.id));
-            const laidOut = layoutNodes(sortedNodes);
-            // Debugging: Log nodes after layout
-            console.log('[FlowChart] After layout', layoutType, 'got', laidOut.length, 'nodes:', laidOut.map(n => n.id));
-            // Defensive: Always return all nodes, never just one
-            if (!Array.isArray(laidOut) || laidOut.length !== sortedNodes.length) {
-                console.warn('[FlowChart] Layout returned wrong number of nodes! Falling back to default positions.');
-                return sortedNodes.map((node, i) => ({
-                    ...node,
-                    position: { x: 100 + i * 40, y: 100 + i * 40 }
-                }));
-            }
-            return laidOut.map((node, i) => {
-                let { x, y } = node.position || {};
-                if (!isFinite(x) || isNaN(x)) x = 600 + 200 * Math.cos((2 * Math.PI * i) / sortedNodes.length);
-                if (!isFinite(y) || isNaN(y)) y = 400 + 200 * Math.sin((2 * Math.PI * i) / sortedNodes.length);
-                x = Math.max(0, Math.min(1200, x));
-                y = Math.max(0, Math.min(800, y));
-                return { ...node, position: { x, y } };
-            });
+            // Use layoutNodes to assign positions for radial/angled
+            return layoutNodes(sortedNodes);
         }
         if (orderBy === 'dependency') {
             // Group nodes by type (dependency view)
@@ -676,23 +610,6 @@ const FlowChartInner = forwardRef(({
         // console.log('[FlowChart] selectedNode:', selectedNode);
         // console.log('[FlowChart] visibleEdges size:', visibleEdges.size);
     }, [showArrows, edges.length, edgesWithStyles.length, selectedNode, visibleEdges.size]);
-
-    // Debugging: Log nodes and edges for each layout type
-    useEffect(() => {
-        console.log(`[FlowChart] layoutType: ${layoutType}, nodes:`, nodes);
-        console.log(`[FlowChart] layoutType: ${layoutType}, edges:`, edges);
-    }, [layoutType, nodes, edges]);
-
-    // Auto-fit the view on layout or node change
-    useEffect(() => {
-        if (reactFlowInstance && nodes.length > 0) {
-            setTimeout(() => {
-                try {
-                    reactFlowInstance.fitView({ padding: 0.2, includeHiddenNodes: true });
-                } catch (e) { /* ignore */ }
-            }, 100);
-        }
-    }, [layoutType, nodes, reactFlowInstance]);
 
     // Only keep the raster PDF export using html2canvas
     const handleExportPdf = useCallback((afterExportCallback) => {

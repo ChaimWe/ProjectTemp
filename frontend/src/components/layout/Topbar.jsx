@@ -82,6 +82,7 @@ const Topbar = ({
     }
     // Fallback orderBy if not in options
     const validOrderBy = orderOptions.includes(orderBy) ? orderBy : orderOptions[0];
+    const validNodesPerRow = typeof nodesPerRow === 'number' && nodesPerRow >= 2 && nodesPerRow <= 16 ? nodesPerRow : 8;
 
     /**
      * Handles the click event for the file load button.
@@ -139,7 +140,6 @@ const Topbar = ({
                 boxShadow: darkTheme ? '0 4px 6px rgba(0, 0, 0, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
                 backdropFilter: 'blur(10px)',
                 zIndex: 1201,
-                minHeight: 56,
                 '& .MuiButton-outlined': {
                     borderColor: darkTheme ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
                     color: darkTheme ? '#fff' : '#333',
@@ -161,55 +161,62 @@ const Topbar = ({
                 sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'flex-start',
-                    padding: { xs: '2px 2px', sm: '4px 8px' },
-                    gap: 1,
-                    minHeight: 48,
-                    width: '100%',
-                    overflowX: 'auto',
+                    justifyContent: 'space-between',
+                    padding: { xs: '4px 4px', sm: '8px 16px' },
                     flexWrap: 'nowrap',
-                    whiteSpace: 'nowrap',
+                    gap: 1,
+                    minHeight: 64,
                 }}
             >
-                {/* Title */}
-                <Typography variant="h6" sx={{ fontSize: '1.05rem', color: 'inherit', minWidth: 90, mr: 1, flexShrink: 0 }}>
+                {/* Title and dropdowns */}
+                <Typography variant="h6" sx={{ fontSize: '1.1rem', color: 'inherit', minWidth: 120, mr: 2 }}>
                     {aclDetails?.aclName || 'WAF Rules'}
                 </Typography>
-                {/* View dropdown */}
                 <Select
                     size="small"
                     value={viewType}
                     onChange={e => setViewType(e.target.value)}
-                    sx={{ minWidth: 110, maxWidth: 130, background: darkTheme ? '#222' : '#fff', color: darkTheme ? '#fff' : '#333', border: darkTheme ? '1px solid #444' : '1px solid #ccc', mx: 0.5, flexShrink: 0 }}
+                    sx={{
+                        minWidth: 150,
+                        background: darkTheme ? '#222' : '#fff',
+                        color: darkTheme ? '#fff' : '#333',
+                        border: darkTheme ? '1px solid #444' : '1px solid #ccc',
+                        '.MuiOutlinedInput-notchedOutline': {
+                            borderColor: darkTheme ? '#444' : '#ccc',
+                        },
+                        '& .MuiSvgIcon-root': {
+                            color: darkTheme ? '#fff' : '#333',
+                        },
+                        mr: 1
+                    }}
                 >
                     <MenuItem value="tree">Tree (Dependency)</MenuItem>
                     <MenuItem value="radial">Radial</MenuItem>
                     <MenuItem value="angled">Angled</MenuItem>
                     <MenuItem value="inspector">Inspector</MenuItem>
                 </Select>
-                {/* Order dropdown */}
                 <Select
                     size="small"
-                    value={orderBy}
+                    value={validOrderBy}
                     onChange={e => setOrderBy(e.target.value)}
-                    sx={{ minWidth: 90, maxWidth: 110, mx: 0.5, flexShrink: 0 }}
+                    sx={{ minWidth: 120, mr: 1 }}
+                    disabled={viewType !== 'tree'}
                 >
+                    <MenuItem value="dependency">Parent/Child</MenuItem>
                     <MenuItem value="number">Number</MenuItem>
-                    <MenuItem value="dependency">Dependency</MenuItem>
                 </Select>
-                {/* Nodes per row dropdown */}
                 <Select
                     size="small"
-                    value={nodesPerRow}
+                    value={validNodesPerRow}
                     onChange={e => setNodesPerRow(Number(e.target.value))}
-                    sx={{ minWidth: 70, maxWidth: 90, mx: 0.5, flexShrink: 0 }}
+                    sx={{ minWidth: 120, mr: 2 }}
                 >
                     {Array.from({length: 15}, (_, i) => i + 2).map(val => (
                         <MenuItem key={val} value={val}>{val}</MenuItem>
                     ))}
                 </Select>
-                {/* Search */}
-                <Box ref={searchRef} sx={{ display: 'flex', alignItems: 'center', mx: 0.5, flexShrink: 0 }}>
+                {/* Search and view controls */}
+                <Box ref={searchRef} sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
                     {searchOpen ? (
                         <TextField
                             size="small"
@@ -221,55 +228,49 @@ const Topbar = ({
                             onKeyDown={e => {
                                 if (e.key === 'Enter') setSearchOpen(false);
                             }}
-                            sx={{ width: 120, minWidth: 80, maxWidth: 140, transition: 'width 0.3s', mx: 0.5 }}
+                            sx={{ width: 200, transition: 'width 0.3s' }}
                         />
                     ) : (
                         <Tooltip title="Search">
-                            <IconButton onClick={() => setSearchOpen(true)} size="small">
+                            <IconButton onClick={() => setSearchOpen(true)}>
                                 <SearchIcon />
                             </IconButton>
                         </Tooltip>
                     )}
                 </Box>
-                {/* Arrows toggle */}
                 <Tooltip title={showArrows ? "Hide Arrows" : "Show Arrows"}>
-                    <IconButton onClick={() => setShowArrows(!showArrows)} size="small">
+                    <IconButton onClick={() => setShowArrows(!showArrows)}>
                         {showArrows ? <VisibilityIcon /> : <VisibilityOffIcon />}
                     </IconButton>
                 </Tooltip>
-                {/* Dotted lines toggle */}
                 <Tooltip title={dottedLines ? "Use Solid Lines" : "Use Dotted Lines"}>
-                    <IconButton onClick={() => setDottedLines(!dottedLines)} size="small">
+                    <IconButton onClick={() => setDottedLines(!dottedLines)}>
                         {dottedLines ? <LinearScaleIcon /> : <RemoveIcon />}
                     </IconButton>
                 </Tooltip>
-                {/* Animated lines toggle */}
                 <Tooltip title={animatedLines ? "Disable Animation" : "Enable Animation"}>
-                    <IconButton onClick={() => setAnimatedLines(!animatedLines)} size="small">
+                    <IconButton onClick={() => setAnimatedLines(!animatedLines)}>
                         <WavesIcon color={animatedLines ? "primary" : "inherit"} />
                     </IconButton>
                 </Tooltip>
-                {/* Load Rules */}
-                <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 36, minWidth: 90, mx: 0.5, flexShrink: 0 }}>
+                {/* Action buttons */}
+                <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 40, ml: 2 }}>
                     Load Rules
                 </Button>
-                {/* Export PDF */}
-                <IconButton onClick={handleExportPdf} size="small">
+                <IconButton onClick={handleExportPdf} sx={{ ml: 1 }}>
                     <PictureAsPdfIcon />
                 </IconButton>
-                {/* Export Image */}
-                <IconButton onClick={handleExportImage} size="small">
+                <IconButton onClick={handleExportImage} sx={{ ml: 1 }}>
                     <ImageIcon />
                 </IconButton>
-                {/* Warnings */}
-                <IconButton onClick={handleWarningsClick} size="small">
+                <IconButton onClick={handleWarningsClick} sx={{ ml: 1 }}>
                     <Badge badgeContent={warningCount || 0} color="warning">
                         <ReportIcon />
                     </Badge>
                 </IconButton>
                 {/* Dark mode toggle */}
                 <Tooltip title={darkTheme ? 'Light Mode' : 'Dark Mode'}>
-                    <IconButton onClick={() => setDarkTheme(!darkTheme)} size="small">
+                    <IconButton onClick={() => setDarkTheme(!darkTheme)} sx={{ ml: 1 }}>
                         {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
                     </IconButton>
                 </Tooltip>

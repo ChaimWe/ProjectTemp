@@ -119,7 +119,6 @@ export default class RuleTransformer {
         target: targetId
       };
       this.links.push(edge);
-      console.log('[RuleTransformer] Created edge:', JSON.stringify(edge, null, 2));
       return { name: rule.name, id: sourceId };
     });
   }

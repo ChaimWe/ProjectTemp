@@ -17,7 +17,8 @@ import {
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
   BugReport as DebugIcon,
-  SmartToy as AIIcon
+  SmartToy as AIIcon,
+  MergeType as MergeIcon
 } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
 import { useThemeContext } from '../../context/ThemeContext';
@@ -45,6 +46,8 @@ export default function Sidebar() {
   const menuItems = [
     { key: 'home', label: 'Home', icon: <HomeIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/'), path: '/' },
     { key: 'tree', label: 'WAF Tree', icon: <TreeIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/visualization'), path: '/visualization' },
+    // New menu item for WAF & ALB Visualizer
+    { key: 'wafalb', label: 'WAF & ALB Visualizer', icon: <MergeIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/waf-alb-visualizer'), path: '/waf-alb-visualizer' },
     { key: 'debugger', label: 'Request Debugger', icon: <DebugIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/debugger'), path: '/debugger' },
     { key: 'ai', label: 'AI Assistant', icon: <AIIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/ai'), path: '/app/ai' },
   ];

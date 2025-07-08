@@ -8,6 +8,7 @@ import AIPage from './pages/AIPage';
 import RequestDebugger from './debugger/RequestDebugger';
 import AppLayout from './AppLayout';
 import AppPlaceholder from './pages/AppPlaceholder';
+import WafAlbVisualizer from './components/tree/WafAlbVisualizer';
 
 function DebuggerWithContext() {
   const { data } = useOutletContext();
@@ -28,6 +29,8 @@ export default function App() {
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<AppPlaceholder />} />
             <Route path="visualization" element={<ExplorerPage />} />
+            {/* Add WAF & ALB Visualizer route */}
+            <Route path="waf-alb-visualizer" element={<WafAlbVisualizer />} />
             <Route path="debugger" element={<DebuggerWithContext />} />
             <Route path="ai" element={<AIPage />} />
           </Route>
