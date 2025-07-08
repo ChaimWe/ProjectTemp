@@ -40,7 +40,6 @@ import CustomSnackbar from '../components/popup/CustomSnackbar';
 import bgImage from '../assets/pexels-scottwebb-1029624.jpg';
 import { useThemeContext } from '../context/ThemeContext';
 import UploadJsonButton from '../components/upload/UploadJsonButton';
-import RulesLoaderPopup from '../components/upload/RulesLoaderPopup';
 
 /**
  * RequestDebugger component for testing AWS WAF rules.
@@ -51,11 +50,6 @@ import RulesLoaderPopup from '../components/upload/RulesLoaderPopup';
  * 4. View detailed information about rule matches
  */
 const RequestDebugger = ({ rules = [] }) => {
-    console.log('[RequestDebugger] Received rules:', rules);
-    console.log('[RequestDebugger] Rules type:', typeof rules);
-    console.log('[RequestDebugger] Is array:', Array.isArray(rules));
-    console.log('[RequestDebugger] Length:', rules?.length);
-    
     // Print a sample of the rules for debugging
     if (Array.isArray(rules)) {
         console.log('[RequestDebugger] Sample rules:', rules.slice(0, 3));
@@ -64,7 +58,6 @@ const RequestDebugger = ({ rules = [] }) => {
     
     // Filter out falsy or empty rules
     const safeRules = Array.isArray(rules) ? rules.filter(r => r && Object.keys(r).length > 0) : [];
-    console.log('[RequestDebugger] Safe rules length:', safeRules.length);
     if (safeRules.length > 0) {
         console.log('[RequestDebugger] First safe rule:', safeRules[0]);
     }
@@ -212,23 +205,9 @@ const RequestDebugger = ({ rules = [] }) => {
                         </Paper>
                     </Container>
                 </Box>
-                
-                {/* Rules Loader Popup */}
-                <RulesLoaderPopup
-                    open={loaderPopupOpen}
-                    onClose={() => setLoaderPopupOpen(false)}
-                    onRulesLoaded={(rules) => {
-                        setLoadedRules(rules);
-                        setLoaderPopupOpen(false);
-                        showMessage(`Loaded ${rules.length} rules successfully!`, 'success');
-                    }}
-                />
             </Box>
         );
     }
-
-    // Log to confirm main UI is being rendered
-    console.log('[RequestDebugger] Rendering main debugger UI');
 
     // Reset rule evaluation state
     const resetRuleEvaluation = () => {

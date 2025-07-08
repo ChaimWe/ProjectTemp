@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -14,17 +14,34 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  Paper
 } from "@mui/material";
 import UploadJsonButton from "./UploadJsonButton";
 import { fetchAclDetail, fetchAclsNames } from './api';
 import { useThemeContext } from '../../context/ThemeContext';
+import Draggable from 'react-draggable';
+import '../popup/style/RuleDetailsPopup.css';
+
+// PaperComponent for making the Dialog draggable
+function PaperComponent(props) {
+  const nodeRef = useRef(null);
+  return (
+    <Draggable
+      handle=".drag-handle"
+      nodeRef={nodeRef}
+      bounds="parent"
+    >
+      <Paper {...props} ref={nodeRef} />
+    </Draggable>
+  );
+}
 
 /**
  * RulesLoaderPopup component handles uploading and loading rules from a JSON file.
  * Shows a popup for file selection and error handling.
  */
-const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
+const RulesLoaderPopup = ({ open, onRulesLoaded, onClose }) => {
   const [step, setStep] = useState("initial");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [aclNames, setAclNames] = useState([]);
@@ -61,7 +78,7 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
     try {
       let parsed = jsonData;
       if (typeof jsonData === 'string') parsed = JSON.parse(jsonData);
-      onRulesReceived(parsed);
+      onRulesLoaded(parsed);
       onClose();
     } catch (e) {
       setSnackbar({ open: true, message: 'Invalid JSON file', severity: 'error' });
@@ -91,7 +108,7 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
     setLoading(true);
     try {
       const data = await fetchAclDetail(selectedRegion, aclName);
-      onRulesReceived(data);
+      onRulesLoaded(data);
       onClose();
     } catch (error) {
       setSnackbar({ open: true, message: 'Error fetching ACL details', severity: 'error' });
@@ -168,10 +185,19 @@ const RulesLoaderPopup = ({ open, onRulesReceived, onClose }) => {
       open={open}
       onClose={onClose}
       fullWidth
-      paper={{ style: { width: "500px", maxWidth: "500px" } }}
+      PaperComponent={PaperComponent}
+      aria-labelledby="draggable-dialog-title"
     >
-      <DialogTitle textAlign="center">Load Rules</DialogTitle>
-      <DialogContent>{renderContent()}</DialogContent>
+      <DialogTitle 
+        className="drag-handle" 
+        style={{ cursor: 'move' }} 
+        id="draggable-dialog-title"
+      >
+        Load Rules
+      </DialogTitle>
+      <DialogContent>
+        {renderContent()}
+      </DialogContent>
       {step !== "initial" && (
         <DialogActions>
           <Button

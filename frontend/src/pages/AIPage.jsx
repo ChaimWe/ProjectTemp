@@ -2,10 +2,10 @@ import React from 'react';
 import { Box, Container, Paper, Typography, Button, Chip, Alert, Grid } from '@mui/material';
 import { useThemeContext } from '../context/ThemeContext';
 import bgImage from '../assets/pexels-scottwebb-1029624.jpg';
-import RulesLoaderPopup from '../components/upload/RulesLoaderPopup';
 import CustomSnackbar from '../components/popup/CustomSnackbar';
 import { useOutletContext } from 'react-router-dom';
 import AIChatPanel from '../components/popup/AIChatPanel';
+import RuleTransformer from '../components/tree/RuleTransformer';
 
 /**
  * AI Page - Full page with TopBar and Sidebar layout
@@ -24,6 +24,13 @@ const AIPage = () => {
     };
 
     const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
+
+    const dependencyEdges = React.useMemo(() => {
+        if (!rules || rules.length === 0) return [];
+        const ruleTransformer = new RuleTransformer(rules);
+        const result = ruleTransformer.transformRules();
+        return result?.edges || [];
+    }, [rules]);
 
     return (
         <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -157,18 +164,11 @@ const AIPage = () => {
                     <AIChatPanel
                         rule={rules[0] || {}}
                         allRules={rules}
-                        edges={[]}
+                        edges={dependencyEdges}
                         isAIPage={true}
                     />
                 </Container>
             </Box>
-
-            {/* Rules Loader Popup */}
-            <RulesLoaderPopup
-                open={loaderOpen}
-                onClose={() => setLoaderOpen(false)}
-                onRulesLoaded={handleRulesLoaded}
-            />
 
             {/* Snackbar for notifications */}
             <CustomSnackbar

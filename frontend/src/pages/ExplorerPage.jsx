@@ -48,15 +48,15 @@ export default function ExplorerPage() {
   } = useOutletContext();
 
   // Debug logging
-  useEffect(() => {
-    console.log('[ExplorerPage] Data changed:', data);
-  }, [data]);
+  // useEffect(() => {
+  //   console.log('[ExplorerPage] Data changed:', data);
+  // }, [data]);
 
-  useEffect(() => {
-    console.log('[ExplorerPage] View changed:', viewType);
-  }, [viewType]);
+  // useEffect(() => {
+  //   console.log('[ExplorerPage] View changed:', viewType);
+  // }, [viewType]);
 
-  console.log('[ExplorerPage] treeStyle prop:', treeStyle);
+  // console.log('[ExplorerPage] treeStyle prop:', treeStyle);
 
   /**
    * Handles setting and normalizing new data for the app.
@@ -69,13 +69,13 @@ export default function ExplorerPage() {
   /**
    * Handles rules received from the loader popup and normalizes them.
    */
-  const handleRulesReceived = (rulesData) => {
+  const handleRulesLoaded = (rulesData) => {
     const normalized = normalizeRulesData(rulesData);
     setData(normalized);
     setLoaderPopupOpen(false);
   };
 
-  console.log('[ExplorerPage] Render - view:', viewType, 'data:', data);
+  // console.log('[ExplorerPage] Render - view:', viewType, 'data:', data);
   
   return (
     <div style={{ ...styles.mainContainer, position: 'relative' }}>
@@ -122,6 +122,8 @@ export default function ExplorerPage() {
             setOrderBy={setOrderBy}
             treeStyle={treeStyle}
             setTreeStyle={setTreeStyle}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
           />
         </Box>
       </Box>

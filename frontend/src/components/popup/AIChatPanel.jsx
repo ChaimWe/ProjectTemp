@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, TextField, Button, Typography, CircularProgress, Paper, Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel } from '@mui/material';
 import { useThemeContext } from '../../context/ThemeContext';
 import OpenAI from 'openai';
@@ -64,6 +64,7 @@ function renderJsonBlock(text) {
 export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = false }) {
   const { getColor } = useThemeContext();
   const messagesEndRef = useRef(null);
+  const containerRef = useRef(null);
 
   // Chat state management
   const [messages, setMessages] = useState([
@@ -74,14 +75,15 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [responseStyle, setResponseStyle] = useState('concise');
-  const [seeAllRules, setSeeAllRules] = useState(false);
+  const [seeAllRules, setSeeAllRules] = useState(true);
   const [scrollSpeed, setScrollSpeed] = useState('normal');
   const [activeTab, setActiveTab] = useState('chat');
-  const [userScrolledUp, setUserScrolledUp] = useState(false);
-  const [lastScrollTop, setLastScrollTop] = useState(0);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   // Calculate parent and child rules for the current rule
   const ruleId = String(rule?.id || '');
+  // Parent = rule that creates the label (source of the edge)
+  // Child = rule that depends on the label (target of the edge)
   const parentIds = edges.filter(e => String(e.target) === ruleId).map(e => String(e.source));
   const childIds = edges.filter(e => String(e.source) === ruleId).map(e => String(e.target));
   const parentRules = (allRules || []).filter((r, index) => parentIds.includes(String(index)));
@@ -90,60 +92,29 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
   const childNames = childRules.map(r => r.Name).join(', ') || 'None';
 
   // Scroll logic
-  const scrollToBottom = () => {
-    if (scrollSpeed !== 'none' && messagesEndRef.current) {
-      const container = messagesEndRef.current.parentElement;
-      const lastMessage = messages[messages.length - 1];
-      const responseLength = lastMessage?.text?.length || 0;
-      const baseDurationPerChar = {
-        slow: 24.0,
-        normal: 12.0,
-        fast: 8.0,
-        instant: 0
-      }[scrollSpeed] || 12.0;
-      const scrollDuration = scrollSpeed === 'instant' ? 0 : Math.max(8000, responseLength * baseDurationPerChar);
-
-      if (scrollDuration === 0) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-        setUserScrolledUp(false);
-      } else {
-        const startTime = performance.now();
-        const startScrollTop = container.scrollTop;
-        const targetScrollTop = container.scrollHeight - container.clientHeight;
-        const distance = targetScrollTop - startScrollTop;
-        const animateScroll = (currentTime) => {
-          const elapsed = currentTime - startTime;
-          const progress = Math.min(elapsed / scrollDuration, 1);
-          const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-          if (!userScrolledUp) {
-            const expectedScrollTop = startScrollTop + (distance * easeOutQuart);
-            container.scrollTop = expectedScrollTop;
-          }
-          if (progress < 1 && !userScrolledUp) {
-            requestAnimationFrame(animateScroll);
-          }
-        };
-        requestAnimationFrame(animateScroll);
-      }
-    }
+  const isAtBottom = () => {
+    const container = containerRef.current;
+    if (!container) return false;
+    
+    const threshold = 20; // pixels from bottom
+    return container.scrollHeight - container.scrollTop - container.clientHeight <= threshold;
   };
 
-  const handleScroll = (e) => {
-    const container = e.target;
-    const currentScrollTop = container.scrollTop;
-    const maxScrollTop = container.scrollHeight - container.clientHeight;
-    if (currentScrollTop < lastScrollTop && currentScrollTop < maxScrollTop - 100) {
-      setUserScrolledUp(true);
-    }
-    if (currentScrollTop >= maxScrollTop - 50) {
-      setUserScrolledUp(false);
-    }
-    setLastScrollTop(currentScrollTop);
-  };
+  const handleScroll = useCallback(() => {
+    // Update auto-scroll based on if we're at bottom
+    setShouldAutoScroll(isAtBottom());
+  }, []);
 
+  const scrollToBottom = useCallback(() => {
+    if (!shouldAutoScroll || !containerRef.current) return;
+    
+    containerRef.current.scrollTop = containerRef.current.scrollHeight;
+  }, [shouldAutoScroll]);
+
+  // Scroll on new messages
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollSpeed]);
+  }, [messages.length, scrollToBottom]);
 
   // AI send logic
   const sendMessage = async () => {
@@ -161,8 +132,8 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
       const currentRuleInfo = rule?.id
         ? `The user is currently focused on rule #${parseInt(rule.id, 10) + 1}: ${rule.name || rule.Name || 'Unknown Rule'}`
         : 'The user is asking about their WAF rules in general.';
-      const dependencyInfo = `Parent rules: ${parentNames}. Child rules: ${childNames}. When asked about dependencies, always use the provided parent and child rule information, not your own analysis.`;
-      const relationshipInstruction = `\nIf the user asks about the relationship between the current rule and another rule, check if that rule is listed as a parent or child. If it is a child, say 'rule-X is a child of rule-Y.' If it is a parent, say 'rule-X is a parent of rule-Y.' If it is not in either list, say there is no direct relationship.`;
+      const dependencyInfo = `Parent rules: ${parentNames}. Child rules: ${childNames}. (Parent = rule that creates a label this rule depends on. Child = rule that depends on a label this rule creates.) When asked about dependencies, always use the provided parent and child rule information, not your own analysis.`;
+      const relationshipInstruction = `\nIf the user asks about the relationship between the current rule and another rule, check if that rule is listed as a parent or child. If it is a child, say 'rule-X is a child of rule-Y (depends on a label created by rule-Y)'. If it is a parent, say 'rule-X is a parent of rule-Y (creates a label used by rule-Y)'. If it is not in either list, say there is no direct relationship.`;
       const systemPrompt = `You are an expert in AWS WAF rules. The user will ask questions about their WAF rules. Always answer clearly and concisely, using the rule JSON provided. If the user asks for improvements, suggest best practices. Style: ${styleInstruction}\n${currentRuleInfo}\n${dependencyInfo}${relationshipInstruction}`;
       const contextRules = seeAllRules && Array.isArray(allRules) ? allRules : [rule];
       const chatHistory = [
@@ -225,6 +196,71 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
     }
     return <span>{msg.text}</span>;
   };
+
+  // Chat Tab Content
+  const ChatContent = () => (
+    <Box 
+      ref={containerRef}
+      sx={{ 
+        flex: 1, 
+        overflow: 'auto', 
+        mb: 2, 
+        minHeight: 300, 
+        maxHeight: 400,
+        scrollBehavior: 'smooth',
+        '&::-webkit-scrollbar': {
+          width: '8px',
+        },
+        '&::-webkit-scrollbar-track': {
+          background: 'rgba(0,0,0,0.1)',
+          borderRadius: '4px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: 'rgba(0,0,0,0.2)',
+          borderRadius: '4px',
+          '&:hover': {
+            background: 'rgba(0,0,0,0.3)',
+          },
+        },
+      }} 
+      onScroll={handleScroll}
+    >
+      {messages.map((msg, idx) => (
+        <Box
+          key={idx}
+          sx={{
+            display: 'flex',
+            justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+            mb: 1
+          }}
+        >
+          <Box
+            sx={{
+              background: msg.sender === 'user'
+                ? 'linear-gradient(90deg, #1976d2 0%, #2e7d32 100%)'
+                : 'rgba(25, 118, 210, 0.08)',
+              color: msg.sender === 'user' ? '#fff' : getColor('barText'),
+              px: 2,
+              py: 1,
+              borderRadius: 2,
+              maxWidth: '80%',
+              boxShadow: msg.sender === 'user'
+                ? '0 2px 8px rgba(25,118,210,0.12)'
+                : '0 1px 4px rgba(25,118,210,0.04)'
+            }}
+          >
+            <b>{msg.sender === 'user' ? 'You' : 'AI'}:</b> {renderAiMessage(msg)}
+          </Box>
+        </Box>
+      ))}
+      <div ref={messagesEndRef} />
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+          <CircularProgress size={28} />
+        </Box>
+      )}
+    </Box>
+  );
 
   return (
     <Box sx={{
@@ -307,44 +343,7 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
         </Box>
 
         {/* Chat Tab */}
-        {activeTab === 'chat' && (
-          <Box sx={{ flex: 1, overflow: 'auto', mb: 2, minHeight: 300, maxHeight: 400 }} onScroll={handleScroll}>
-            {messages.map((msg, idx) => (
-              <Box
-                key={idx}
-                sx={{
-                  display: 'flex',
-                  justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                  mb: 1
-                }}
-              >
-                <Box
-                  sx={{
-                    background: msg.sender === 'user'
-                      ? 'linear-gradient(90deg, #1976d2 0%, #2e7d32 100%)'
-                      : 'rgba(25, 118, 210, 0.08)',
-                    color: msg.sender === 'user' ? '#fff' : getColor('barText'),
-                    px: 2,
-                    py: 1,
-                    borderRadius: 2,
-                    maxWidth: '80%',
-                    boxShadow: msg.sender === 'user'
-                      ? '0 2px 8px rgba(25,118,210,0.12)'
-                      : '0 1px 4px rgba(25,118,210,0.04)'
-                  }}
-                >
-                  <b>{msg.sender === 'user' ? 'You' : 'AI'}:</b> {renderAiMessage(msg)}
-                </Box>
-              </Box>
-            ))}
-            <div ref={messagesEndRef} />
-            {loading && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <CircularProgress size={28} />
-              </Box>
-            )}
-          </Box>
-        )}
+        {activeTab === 'chat' && <ChatContent />}
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
@@ -420,9 +419,9 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
                     }
                   }}
                 >
-                  <MenuItem value="slow">🐌 Very Slow (24s/char)</MenuItem>
-                  <MenuItem value="normal">⚡ Normal (12s/char)</MenuItem>
-                  <MenuItem value="fast">🚀 Fast (8s/char)</MenuItem>
+                  <MenuItem value="slow">🐌 Very Slow (35s/char)</MenuItem>
+                  <MenuItem value="normal">⚡ Normal (30s/char)</MenuItem>
+                  <MenuItem value="fast">🚀 Fast (25s/char)</MenuItem>
                   <MenuItem value="instant">⚡ Instant</MenuItem>
                   <MenuItem value="none">❌ No Auto-scroll</MenuItem>
                 </Select>
@@ -441,7 +440,7 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
                     }}
                   />
                 }
-                label="See All Rules"
+                label="See All Rules (Default: On)"
               />
             </Box>
           </Box>

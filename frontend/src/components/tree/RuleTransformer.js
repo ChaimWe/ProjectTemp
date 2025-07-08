@@ -8,17 +8,14 @@ export default class RuleTransformer {
   }
 
   transformRules() {
-    console.log('[RuleTransformer] Starting rule transformation');
-
     if (!this.rulesArray || !this.rulesArray.length || !Array.isArray(this.rulesArray)) {
-      console.error('[RuleTransformer] Invalid input data');
       return null;
     }
 
     try {
       const sortedRules = [...this.rulesArray].sort((a, b) => a.Priority - b.Priority);
       const newRules = [];
-
+      const nodeIds = [];
       sortedRules.forEach((rule, index) => {
         this.warnings = [];
         this.validateRule(rule);
@@ -26,9 +23,11 @@ export default class RuleTransformer {
         const labelScopeDown = rule.Statement?.RateBasedStatement?.ScopeDownStatement ?
           this.labelStatement(rule.Statement.RateBasedStatement.ScopeDownStatement, newRules, index) : [];
 
+        const nodeId = rule.Name;
+        nodeIds.push(nodeId);
         const transformedRule = {
           json: JSON.stringify(rule, null, 2),
-          id: String(index),
+          id: nodeId,
           name: rule.Name,
           priority: rule.Priority,
           action: rule.Action ? Object.keys(rule.Action)[0] : Object.keys(rule.OverrideAction)[0],
@@ -38,24 +37,19 @@ export default class RuleTransformer {
           level: this.level,
           warnings: [...this.warnings]
         };
-
         newRules.push(transformedRule);
       });
-
-      console.log('[RuleTransformer] Transformation complete:', newRules.length, 'nodes processed');
-      console.log('[DEBUG] All edges created:', this.links);
+      console.log('[RuleTransformer] Created node ids:', nodeIds);
       return {
-        nodes: newRules.map((rule, index) => ({
-          id: String(index),
+        nodes: newRules.map((rule) => ({
+          id: rule.id,
           type: 'custom-node',
           data: rule,
-          // position will be assigned later if missing
         })),
         edges: this.links,
         globalWarnings: this.collectWarnings(newRules)
       };
     } catch (error) {
-      console.error('[RuleTransformer] Error during transformation:', error);
       return null;
     }
   }
@@ -111,32 +105,21 @@ export default class RuleTransformer {
 
   findParentDependencies(rules, name, currentIndex) {
     const matchingRules = rules.filter(r => r.ruleLabels?.includes(name));
-
-    if (matchingRules.length === 0) {
-      if ([...this.rulesArray][currentIndex].RuleLabels?.some(l => l.Name === name)) {
-        this.warnings.push(`Label '${name}' is self-referential - rule depends on a label it generates`);
-      } else if (![...this.rulesArray].some(r => r.RuleLabels?.some(l => l.Name === name))) {
-        this.warnings.push(`Label '${name}' is not defined in any rule`);
-      } else {
-        this.warnings.push(`Label '${name}' is not defined in any rule with lower priority`);
-      }
-      return [];
-    }
-
     const currentRuleName = [...this.rulesArray][currentIndex].Name;
     return matchingRules.map(rule => {
       if (rule.level === this.level) this.level++;
       if (["ALLOW", "BLOCK"].includes(rule.action)) {
         this.warnings.push(`Label '${name}' is created in a terminal rule (${rule.action}) - this may affect rule evaluation`);
       }
-      const sourceId = String(rules.indexOf(rule));
-      const targetId = String(currentIndex);
-      console.log(`[DEBUG] Creating edge: source=${sourceId} (${rule.name}), target=${targetId} (${currentRuleName}), label=${name}`);
-      this.links.push({
+      const sourceId = rule.id;
+      const targetId = currentRuleName;
+      const edge = {
         id: `edge-${sourceId}-${targetId}-${Date.now()}`,
         source: sourceId,
         target: targetId
-      });
+      };
+      this.links.push(edge);
+      console.log('[RuleTransformer] Created edge:', JSON.stringify(edge, null, 2));
       return { name: rule.name, id: sourceId };
     });
   }
@@ -149,17 +132,13 @@ export default class RuleTransformer {
 }
 
 export const transformRules = (data) => {
-    console.log('[RuleTransformer] Starting rule transformation');
-
     if (!data || !data.nodes || !Array.isArray(data.nodes)) {
-        console.error('[RuleTransformer] Invalid input data');
         return null;
     }
 
     try {
         const transformedNodes = data.nodes.map((node) => {
             if (!node || !node.data) {
-                console.warn('[RuleTransformer] Invalid node:', node);
                 return null;
             }
 
@@ -189,10 +168,8 @@ export const transformRules = (data) => {
             return transformedNode;
         }).filter(Boolean); // Remove any null nodes
 
-        console.log('[RuleTransformer] Transformation complete:', transformedNodes.length, 'nodes processed');
         return transformedNodes;
     } catch (error) {
-        console.error('[RuleTransformer] Error during transformation:', error);
         return null;
     }
 };
@@ -200,7 +177,6 @@ export const transformRules = (data) => {
 // Optional utility to print all parent/child relationships for debugging
 export function printRuleRelationships(rules, edges) {
   if (!Array.isArray(rules) || !Array.isArray(edges)) {
-    console.warn('printRuleRelationships: Invalid input');
     return;
   }
   rules.forEach(rule => {
@@ -209,6 +185,5 @@ export function printRuleRelationships(rules, edges) {
     const childIds = edges.filter(e => e.source === ruleId).map(e => e.target);
     const parentNames = rules.filter(r => parentIds.includes(r.name || r.Name)).map(r => r.name || r.Name);
     const childNames = rules.filter(r => childIds.includes(r.name || r.Name)).map(r => r.name || r.Name);
-    console.log(`Rule: ${ruleId}\n  Parents: ${parentNames.join(', ') || 'None'}\n  Children: ${childNames.join(', ') || 'None'}`);
   });
 }

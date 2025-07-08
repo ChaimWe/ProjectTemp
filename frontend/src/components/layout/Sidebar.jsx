@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Drawer,
   List,
@@ -11,13 +11,10 @@ import {
   IconButton,
   Fade,
   Tooltip,
-  Box,
 } from '@mui/material';
 import {
   AccountTree as TreeIcon,
   Menu as MenuIcon,
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
   ChevronLeft as ChevronLeftIcon,
   BugReport as DebugIcon,
   SmartToy as AIIcon
@@ -31,19 +28,25 @@ const drawerWidth = 240;
  * Sidebar component renders the main navigation drawer with menu items and theme toggle.
  * Handles navigation and theme switching.
  */
-export default function Sidebar({ view, setView }) {
+export default function Sidebar() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { darkTheme, getColor } = useThemeContext();
+
+  const isSelected = (path) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.includes(path);
+  };
 
   /**
    * Menu items for navigation and theme toggle.
    */
   const menuItems = [
-    { key: 'home', label: 'Home', icon: <HomeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/') },
-    { key: 'tree', label: 'WAF Tree', icon: <TreeIcon sx={{ color: getColor('barText') }} t='true' />, onClick: () => navigate('/app/visualization') },
-    { key: 'debugger', label: 'Request Debugger', icon: <DebugIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/debugger') },
-    { key: 'ai', label: 'AI Assistant', icon: <AIIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/ai') },
+    { key: 'home', label: 'Home', icon: <HomeIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/'), path: '/' },
+    { key: 'tree', label: 'WAF Tree', icon: <TreeIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/visualization'), path: '/visualization' },
+    { key: 'debugger', label: 'Request Debugger', icon: <DebugIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/debugger'), path: '/debugger' },
+    { key: 'ai', label: 'AI Assistant', icon: <AIIcon sx={{ color: getColor('barText') }} />, onClick: () => navigate('/app/ai'), path: '/app/ai' },
   ];
 
   return (
@@ -85,8 +88,8 @@ export default function Sidebar({ view, setView }) {
         {menuItems.map((item) => (
           <ListItem key={item.key} disablePadding>
             <ListItemButton
-              selected={!item.onClick && view === item.key}
-              onClick={item.onClick || (() => setView(item.key))}
+              selected={isSelected(item.path)}
+              onClick={item.onClick}
               sx={{
                 minHeight: 48,
                 justifyContent: 'initial',
@@ -127,7 +130,7 @@ export default function Sidebar({ view, setView }) {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     '& .MuiTypography-root': {
-                      fontWeight: !item.onClick && view === item.key ? 600 : 400,
+                      fontWeight: isSelected(item.path) ? 600 : 400,
                       color: getColor('barText')
                     },
                   }}

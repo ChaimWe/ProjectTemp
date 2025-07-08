@@ -466,7 +466,7 @@ function Home() {
           color: darkTheme ? '#ccc' : '#666'
         }}>
           <p style={{ margin: 0 }}>
-            © 2024 AWS WAF Visualization Tool. Built for security professionals.
+          &copy; {new Date().getFullYear()} AWS WAF Visualization Tool. Built for security professionals.
           </p>
         </div>
       </footer>

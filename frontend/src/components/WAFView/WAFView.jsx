@@ -19,6 +19,7 @@ import getAnalyzedData from '../../data/getAnalyzedData';
 import TableView from './TableView';
 import CardView from './CardView';
 import Topbar from '../layout/Topbar';
+import InspectorView from './InspectorView';
 
 /**
  * Lays out nodes in a hierarchical top-down structure.
@@ -138,15 +139,13 @@ const WAFView = ({
   setViewType,
   treeSetup = 'collapsible',
   setTreeSetup,
-  orderBy = 'name',
-  setOrderBy,
   treeStyle = 'dependency',
-  setTreeStyle
+  setTreeStyle,
+  searchTerm,
+  setSearchTerm
 }) => {
-    console.log('[WAFView] Render - viewType:', viewType, 'orderBy:', orderBy, 'treeSetup:', treeSetup, 'treeStyle:', treeStyle);
     const { darkTheme } = useThemeContext();
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [selectedNode, setSelectedNode] = useState(null);
     const [rulePopupOpen, setRulePopupOpen] = useState(false);
     const [backTo, setBackTo] = useState(null);
@@ -161,41 +160,99 @@ const WAFView = ({
     const [responseStyle, setResponseStyle] = useState('concise');
     const [popupRule, setPopupRule] = useState(null);
     const [orderDirection, setOrderDirection] = useState('asc');
+    const [dependencyEdges, setDependencyEdges] = useState([]);
+    const [dependencyNodes, setDependencyNodes] = useState([]);
+    // Add state for nodesPerRow
+    const [nodesPerRow, setNodesPerRowRaw] = useState(8); // Default 8 per row
+    // Add state for orderBy
+    const [orderBy, setOrderByRaw] = useState('number');
+
+    // Ensure orderBy is always valid
+    useEffect(() => {
+        const validOrderBys = ['number', 'dependency'];
+        if (!validOrderBys.includes(orderBy)) {
+            setOrderByRaw('number');
+        }
+    }, [orderBy]);
+    // Ensure nodesPerRow is always valid
+    useEffect(() => {
+        const validNodesPerRow = Array.from({length: 15}, (_, i) => i + 2);
+        if (!validNodesPerRow.includes(nodesPerRow)) {
+            setNodesPerRowRaw(8);
+        }
+    }, [nodesPerRow]);
+    // Proxy setters for Topbar
+    const setOrderBy = (val) => setOrderByRaw(val);
+    const setNodesPerRow = (val) => setNodesPerRowRaw(val);
+    // Add debugging for nodesPerRow
+    useEffect(() => {
+        console.log('[WAFView] nodesPerRow changed:', nodesPerRow);
+    }, [nodesPerRow]);
+
+    // Add debugging for orderBy
+    useEffect(() => {
+        console.log('[WAFView] orderBy changed:', orderBy);
+    }, [orderBy]);
 
     // Only allow dependency-based layout for tree view if treeStyle is 'dependency'
-    const effectiveOrderBy = viewType === 'tree' && treeStyle === 'dependency' ? 'dependencies' : orderBy;
+    // Fix: orderBy must be 'number' or 'parentChild' for FlowChart's Select
+    // Use 'number' as fallback for dependency-based layout
+    const effectiveOrderBy = viewType === 'tree' && treeStyle === 'dependency' ? 'number' : orderBy;
+
+    // Define filteredRules at the top of the component
+    const filteredRules = originalRules.filter(rule => {
+        if (!searchTerm) return true;
+        const searchLower = searchTerm.toLowerCase();
+        return Object.entries(rule).some(([key, value]) => {
+            if (typeof value === 'string' || typeof value === 'number') {
+                return String(value).toLowerCase().includes(searchLower);
+            }
+            if (typeof value === 'object' && value !== null) {
+                return JSON.stringify(value).toLowerCase().includes(searchLower);
+            }
+            return false;
+        });
+    });
+
+    /**
+     * Filter rules based on search term
+     */
+    const filterRulesBySearch = useCallback((rules) => {
+        if (!searchTerm) return rules;
+        
+        const searchLower = searchTerm.toLowerCase();
+        return rules.filter(rule => {
+            // Search in all string and number fields
+            return Object.entries(rule).some(([key, value]) => {
+                if (typeof value === 'string' || typeof value === 'number') {
+                    return String(value).toLowerCase().includes(searchLower);
+                }
+                if (typeof value === 'object' && value !== null) {
+                    // For objects (like Statement), stringify and search
+                    return JSON.stringify(value).toLowerCase().includes(searchLower);
+                }
+                return false;
+            });
+        });
+    }, [searchTerm]);
 
     // Add comprehensive debugging
-    console.log('[WAFView] Debug Info:', {
-        originalRules: originalRules?.length || 0,
-        viewType,
-        treeStyle,
-        effectiveOrderBy,
-        orderBy,
-        data: data?.length || 0,
-        graphData: graphData ? `${graphData.nodes?.length || 0} nodes, ${graphData.edges?.length || 0} edges` : 'null'
-    });
+    // console.log('[WAFView] Debug Info:', {
+    //     originalRules: originalRules?.length || 0,
+    //     viewType,
+    //     treeStyle,
+    //     effectiveOrderBy,
+    //     orderBy,
+    //     data: data?.length || 0,
+    //     graphData: graphData ? `${graphData.nodes?.length || 0} nodes, ${graphData.edges?.length || 0} edges` : 'null'
+    // });
 
     // Effect to initialize originalRules from data prop
     useEffect(() => {
-        console.log('[WAFView] Data prop changed:', {
-            dataLength: data?.length || 0,
-            originalRulesLength: originalRules?.length || 0,
-            dataType: typeof data,
-            isArray: Array.isArray(data)
-        });
-
         if (data && Array.isArray(data) && data.length > 0 && (!originalRules || originalRules.length === 0)) {
-            console.log('[WAFView] Initializing originalRules from data prop');
             const normalized = normalizeRulesData(data);
-            console.log('[WAFView] Normalized data from prop:', {
-                isArray: Array.isArray(normalized),
-                length: Array.isArray(normalized) ? normalized.length : 'N/A'
-            });
-            
             if (Array.isArray(normalized) && normalized.length > 0) {
                 setOriginalRules(normalized);
-                console.log('[WAFView] Set originalRules from data prop:', normalized.length);
             }
         }
     }, [data, originalRules]);
@@ -204,167 +261,55 @@ const WAFView = ({
      * Effect: Transforms incoming data into graphData and popupData for visualization.
      */
     useEffect(() => {
-        console.log('[WAFView] Data processing effect triggered:', {
-            originalRulesLength: originalRules?.length || 0,
-            viewType,
-            treeStyle,
-            effectiveOrderBy
-        });
-
+        // Debugging: Log when this effect runs and what it sets
+        console.log('[WAFView] graphData effect running. viewType:', viewType, 'originalRules:', originalRules.length);
         if (!originalRules || originalRules.length === 0) {
-            console.log('[WAFView] No original rules, clearing graph data');
             setGraphData(null);
             setPopupData(null);
             return;
         }
 
         try {
+            // --- Always build dependency nodes/edges for popups and AI ---
+            const filteredRules = originalRules.filter(rule => {
+                if (!searchTerm) return true;
+                const searchLower = searchTerm.toLowerCase();
+                return Object.entries(rule).some(([key, value]) => {
+                    if (typeof value === 'string' || typeof value === 'number') {
+                        return String(value).toLowerCase().includes(searchLower);
+                    }
+                    if (typeof value === 'object' && value !== null) {
+                        return JSON.stringify(value).toLowerCase().includes(searchLower);
+                    }
+                    return false;
+                });
+            });
+
+            // Always build dependency graph for relationships
+            const transformedData = transformData(filteredRules);
+            const ruleTransformer = new RuleTransformer(transformedData.nodes.map(n => n.data));
+            const ruleTransformed = ruleTransformer.transformRules();
+            const dependencyNodes = ruleTransformed?.nodes?.map(n => n.data) || filteredRules;
+            const dependencyEdges = ruleTransformed?.edges || [];
+
             let finalGraphData = null;
             let finalPopupData = null;
-
-            if (viewType === 'tree') {
-                console.log('[WAFView] Processing tree view with treeStyle:', treeStyle);
-                
-                // Step 1: Common data transformation for all tree styles
-                const transformedData = transformData(originalRules);
-                console.log('[WAFView] Initial transformation result:', {
-                    hasNodes: !!transformedData?.nodes,
-                    nodeCount: transformedData?.nodes?.length || 0,
-                    hasEdges: !!transformedData?.edges,
-                    edgeCount: transformedData?.edges?.length || 0
-                });
-                
-                if (!transformedData || !transformedData.nodes) {
-                    throw new Error("Initial transformation failed");
+            let positionedNodes = [];
+            let sortedNodes = [];
+            let baseNodes = ruleTransformed.nodes.map(node => {
+                if (!node.data.hw) {
+                    node.data.hw = (new Tree()).calculateCard(node.data);
                 }
-                
-                const ruleTransformer = new RuleTransformer(transformedData.nodes.map(n => n.data));
-                const ruleTransformed = ruleTransformer.transformRules();
-                console.log('[WAFView] Rule transformation result:', {
-                    hasNodes: !!ruleTransformed?.nodes,
-                    nodeCount: ruleTransformed?.nodes?.length || 0,
-                    hasEdges: !!ruleTransformed?.edges,
-                    edgeCount: ruleTransformed?.edges?.length || 0,
-                    hasWarnings: !!ruleTransformed?.globalWarnings,
-                    warningCount: ruleTransformed?.globalWarnings?.length || 0
-                });
-                
-                if (!ruleTransformed) {
-                    throw new Error("Rule transformation failed");
-                }
+                return node;
+            });
+            let baseEdges = ruleTransformed.edges
+                .filter(e => e && e.source && e.target && e.id)
+                .map(e => ({ ...e, type: 'smoothstep', animated: animatedLines }));
 
-                const treeHelper = new Tree();
-                const baseNodes = ruleTransformed.nodes.map(node => {
-                    if (!node.data.hw) {
-                        node.data.hw = treeHelper.calculateCard(node.data);
-                    }
-                    return node;
-                });
-
-                const baseEdges = ruleTransformed.edges
-                    .filter(e => e && e.source && e.target && e.id)
-                    .map(e => ({ ...e, type: 'smoothstep', animated: animatedLines }));
-
-                console.log('[WAFView] Base nodes and edges prepared:', {
-                    baseNodesCount: baseNodes.length,
-                    baseEdgesCount: baseEdges.length
-                });
-
-                let positionedNodes = [];
-
-                // Step 2: Sort nodes for layouts that need it
-                let sortedNodes = [];
-                if (treeStyle !== 'dependency') {
-                    sortedNodes = [...baseNodes].sort((a, b) => {
-                        const aVal = a.data[effectiveOrderBy] || '';
-                        const bVal = b.data[effectiveOrderBy] || '';
-                        if (effectiveOrderBy.toLowerCase().includes('date')) {
-                            return new Date(aVal || 0) - new Date(bVal || 0);
-                        }
-                        return String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
-                    });
-                    console.log('[WAFView] Sorted nodes for non-dependency layout:', sortedNodes.length);
-                }
-
-                // Step 3: Layout-specific positioning
-                if (treeStyle === 'dependency') {
-                    console.log('[WAFView] Using layout: dependency');
-                    treeHelper.calculateNodePositionHierarchical(baseNodes, baseEdges);
-                    positionedNodes = baseNodes;
-                    finalGraphData = { nodes: positionedNodes, edges: baseEdges.map(e => ({ ...e, type: undefined, animated: animatedLines })) };
-                } else if (treeStyle === 'radial') {
-                    console.log('[WAFView] Using layout: radial');
-                    // Restore previous radial layout: evenly distribute nodes in a circle
-                    const N = sortedNodes.length;
-                    const radius = 350;
-                    const centerX = 600;
-                    const centerY = 350;
-                    positionedNodes = sortedNodes.map((node, i) => {
-                        const angle = (2 * Math.PI * i) / N;
-                        const x = centerX + radius * Math.cos(angle);
-                        const y = centerY + radius * Math.sin(angle);
-                        return { ...node, position: { x, y } };
-                    });
-                    finalGraphData = { nodes: positionedNodes, edges: baseEdges };
-                } else if (treeStyle === 'angled') {
-                    console.log('[WAFView] Using layout: angled (triangle with corner routing)');
-                    // Arrange nodes diagonally (triangle on its side) with reduced spacing
-                    const k = 80; // reduced spacing factor from 120 to 80
-                    positionedNodes = sortedNodes.map((node, i) => ({
-                        ...node,
-                        position: { x: 100 + i * k, y: 100 + i * k },
-                    }));
-                    // Edges: route through bottom left for child, top right for parent
-                    const edges = [];
-                    const minX = Math.min(...positionedNodes.map(n => n.position.x));
-                    const minY = Math.min(...positionedNodes.map(n => n.position.y));
-                    const maxX = Math.max(...positionedNodes.map(n => n.position.x));
-                    const maxY = Math.max(...positionedNodes.map(n => n.position.y));
-                    positionedNodes.forEach((node) => {
-                        const nodeId = node.id;
-                        baseEdges.forEach(edge => {
-                            if (edge.target === nodeId) {
-                                const depNode = positionedNodes.find(n => n.id === edge.source);
-                                if (depNode) {
-                                    // If depNode is above node, route through bottom left; else, top right
-                                    const from = depNode.position;
-                                    const to = node.position;
-                                    let waypoints = [];
-                                    if (from.y < to.y) {
-                                        // Dependency (parent above child): bottom left
-                                        waypoints = [
-                                            { x: minX, y: maxY }, // bottom left corner
-                                            { x: to.x, y: maxY }, // horizontal to child x
-                                            { x: to.x, y: to.y }  // up to child
-                                        ];
-                                    } else {
-                                        // Parent below child: top right
-                                        waypoints = [
-                                            { x: maxX, y: minY }, // top right corner
-                                            { x: from.x, y: minY }, // horizontal to parent x
-                                            { x: from.x, y: from.y } // down to parent
-                                        ];
-                                    }
-                                    edges.push({
-                                        id: `angled-${depNode.id}-${nodeId}`,
-                                        source: depNode.id,
-                                        target: nodeId,
-                                        type: 'custom',
-                                        animated: animatedLines,
-                                        data: { waypoints }
-                                    });
-                                }
-                            }
-                        });
-                    });
-                    finalGraphData = { nodes: positionedNodes, edges };
-                }
-
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log(`[WAFView] [${treeStyle}] Final nodes:`, positionedNodes);
-                    console.log(`[WAFView] [${treeStyle}] Final edges:`, finalGraphData.edges);
-                }
-
+            // Always set graphData for all graph views
+            if (['tree', 'radial', 'angled'].includes(viewType)) {
+                positionedNodes = baseNodes;
+                finalGraphData = { nodes: positionedNodes, edges: baseEdges.map(e => ({ ...e, type: undefined, animated: animatedLines })) };
                 finalPopupData = {
                     nodes: positionedNodes,
                     globalWarnings: ruleTransformed.globalWarnings
@@ -372,10 +317,9 @@ const WAFView = ({
                 if (setWarningCount) {
                     setWarningCount(ruleTransformed.globalWarnings?.length || 0);
                 }
-
             } else {
                 // Table/Card views (existing logic)
-                const sortedRules = [...originalRules].sort((a, b) => {
+                const sortedRules = [...filteredRules].sort((a, b) => {
                     if (!orderBy) return 0;
                     const aVal = a[orderBy] ?? '';
                     const bVal = b[orderBy] ?? '';
@@ -392,20 +336,29 @@ const WAFView = ({
                     }
                     return orderDirection === 'asc' ? cmp : -cmp;
                 });
-                // When not in tree view, there's no complex graph data
-                 finalGraphData = { nodes: [], edges: [] };
-                 finalPopupData = { nodes: sortedRules, globalWarnings: [] };
+                // For non-graph views, graphData is empty, but popups still get relationships
+                finalGraphData = { nodes: [], edges: [] };
+                finalPopupData = { nodes: sortedRules, globalWarnings: [] };
             }
-            
+            // Debugging: Log what is being set
+            console.log('[WAFView] Setting graphData:', finalGraphData?.nodes?.length, 'nodes,', finalGraphData?.edges?.length, 'edges');
             setGraphData(finalGraphData);
             setPopupData(finalPopupData);
+            // Store for popups regardless of viewType
+            setDependencyEdges(dependencyEdges);
+            setDependencyNodes(dependencyNodes);
 
         } catch (error) {
-            console.error("[WAFView] Error during data processing:", error);
             setGraphData(null);
             setPopupData(null);
         }
-    }, [originalRules, setWarningCount, effectiveOrderBy, treeSetup, treeStyle, viewType, animatedLines, orderDirection, orderBy]);
+    }, [originalRules, setWarningCount, effectiveOrderBy, treeSetup, treeStyle, viewType, animatedLines, orderDirection, orderBy, searchTerm, filterRulesBySearch]);
+
+    // Debugging: Log dependencyNodes and dependencyEdges when AI summary is generated
+    useEffect(() => {
+        console.log('[WAFView] dependencyNodes:', dependencyNodes);
+        console.log('[WAFView] dependencyEdges:', dependencyEdges);
+    }, [dependencyNodes, dependencyEdges]);
 
     /**
      * Handles node selection and opens the rule popup.
@@ -436,145 +389,57 @@ const WAFView = ({
      * Handles rules received from the loader popup and normalizes them.
      */
     const handleRulesReceived = useCallback(async (rulesData, style = responseStyle) => {
-        console.log('[WAFView] handleRulesReceived called with:', {
-            rulesDataType: typeof rulesData,
-            isString: typeof rulesData === 'string',
-            isArray: Array.isArray(rulesData),
-            isObject: typeof rulesData === 'object',
-            style
-        });
-
         if (typeof rulesData === 'string') {
             try {
                 rulesData = JSON.parse(rulesData);
-                console.log('[WAFView] Parsed string data:', {
-                    isArray: Array.isArray(rulesData),
-                    length: Array.isArray(rulesData) ? rulesData.length : 'N/A'
-                });
             } catch (e) {
-                console.error('[WAFView] Failed to parse rules data:', e);
                 return;
             }
         }
         
         const normalized = normalizeRulesData(rulesData);
-        console.log('[WAFView] Normalized rules data:', {
-            isArray: Array.isArray(normalized),
-            length: Array.isArray(normalized) ? normalized.length : 'N/A',
-            firstRule: Array.isArray(normalized) && normalized.length > 0 ? Object.keys(normalized[0]) : 'N/A'
-        });
 
         if (!Array.isArray(normalized)) {
-            console.error('[WAFView] Normalized data is not an array:', normalized);
             return;
         }
 
         // Always use dependency-transformed rules for AI summary
-        console.log('[WAFView] Starting dependency transformation for AI...');
         const transformedData = transformData(normalized);
-        console.log('[WAFView] Initial transformData result:', {
-            hasNodes: !!transformedData?.nodes,
-            nodeCount: transformedData?.nodes?.length || 0,
-            hasEdges: !!transformedData?.edges,
-            edgeCount: transformedData?.edges?.length || 0
-        });
-
         const ruleTransformer = new RuleTransformer(transformedData.nodes.map(n => n.data));
         const ruleTransformed = ruleTransformer.transformRules();
-        console.log('[WAFView] RuleTransformer result:', {
-            hasNodes: !!ruleTransformed?.nodes,
-            nodeCount: ruleTransformed?.nodes?.length || 0,
-            hasEdges: !!ruleTransformed?.edges,
-            edgeCount: ruleTransformed?.edges?.length || 0,
-            hasWarnings: !!ruleTransformed?.globalWarnings,
-            warningCount: ruleTransformed?.globalWarnings?.length || 0
-        });
 
         const dependencyNodes = ruleTransformed?.nodes?.map(n => n.data) || normalized;
         const dependencyEdges = ruleTransformed?.edges || [];
         
-        console.log('[WAFView] Sending to AI analysis:', {
-            nodeCount: dependencyNodes.length,
-            edgeCount: dependencyEdges.length,
-            style
-        });
-
         const analyzed = await getAnalyzedData({ nodes: dependencyNodes, edges: dependencyEdges }, style);
-        console.log('[WAFView] AI analysis result:', {
-            hasRules: !!analyzed?.rules,
-            ruleCount: analyzed?.rules?.length || 0,
-            firstRule: analyzed?.rules?.[0] ? Object.keys(analyzed.rules[0]) : 'N/A',
-            sampleRule: analyzed?.rules?.[0] || 'N/A',
-            fullResponse: analyzed
-        });
 
         setOriginalRules(normalized); // Store the full rules for graph logic
         setAiSummary(analyzed.rules || []); // Store the AI summary for display
         setData(normalized); // Optionally keep for compatibility
         setResponseStyle(style); // Save the style for future loads
-        
-        console.log('[WAFView] State updated:', {
-            originalRulesLength: normalized.length,
-            aiSummaryLength: analyzed.rules?.length || 0
-        });
     }, [setData, responseStyle]);
 
     // Handler to update AI style and re-fetch summary
     const handleChangeAiStyle = async (newStyle) => {
-        console.log('[WAFView] handleChangeAiStyle called:', {
-            newStyle,
-            originalRulesLength: originalRules?.length || 0,
-            isArray: Array.isArray(originalRules)
-        });
-
         if (!originalRules || !Array.isArray(originalRules)) {
-            console.error('[WAFView] No original rules available for AI style change');
             return;
         }
-
+        // Debugging: Log before AI summary
+        console.log('[WAFView] handleChangeAiStyle dependencyNodes:', dependencyNodes);
+        console.log('[WAFView] handleChangeAiStyle dependencyEdges:', dependencyEdges);
         // Always use dependency-transformed rules for AI summary
-        console.log('[WAFView] Re-transforming rules for AI style change...');
         const transformedData = transformData(originalRules);
-        console.log('[WAFView] TransformData for style change:', {
-            hasNodes: !!transformedData?.nodes,
-            nodeCount: transformedData?.nodes?.length || 0,
-            hasEdges: !!transformedData?.edges,
-            edgeCount: transformedData?.edges?.length || 0
-        });
 
         const ruleTransformer = new RuleTransformer(transformedData.nodes.map(n => n.data));
         const ruleTransformed = ruleTransformer.transformRules();
-        console.log('[WAFView] RuleTransformer for style change:', {
-            hasNodes: !!ruleTransformed?.nodes,
-            nodeCount: ruleTransformed?.nodes?.length || 0,
-            hasEdges: !!ruleTransformed?.edges,
-            edgeCount: ruleTransformed?.edges?.length || 0,
-            hasWarnings: !!ruleTransformed?.globalWarnings,
-            warningCount: ruleTransformed?.globalWarnings?.length || 0
-        });
 
         const dependencyNodes = ruleTransformed?.nodes?.map(n => n.data) || originalRules;
         const dependencyEdges = ruleTransformed?.edges || [];
         
-        console.log('[WAFView] Sending to AI analysis for style change:', {
-            nodeCount: dependencyNodes.length,
-            edgeCount: dependencyEdges.length,
-            newStyle
-        });
-
         const analyzed = await getAnalyzedData({ nodes: dependencyNodes, edges: dependencyEdges }, newStyle);
-        console.log('[WAFView] AI analysis result for style change:', {
-            hasRules: !!analyzed?.rules,
-            ruleCount: analyzed?.rules?.length || 0
-        });
 
         setAiSummary(analyzed.rules || []);
         setResponseStyle(newStyle);
-        
-        console.log('[WAFView] AI style change completed:', {
-            newStyle,
-            aiSummaryLength: analyzed.rules?.length || 0
-        });
     };
 
     // Handler for Table/Card click
@@ -599,15 +464,77 @@ const WAFView = ({
         setOrderDirection(direction);
     };
 
-    // Defensive filtering and debugging before rendering
-    const isValidNode = node => node && node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number' && !isNaN(node.position.x) && !isNaN(node.position.y);
-    const validNodes = graphData && Array.isArray(graphData.nodes) ? graphData.nodes.filter(isValidNode) : [];
-    const nodeIds = new Set(validNodes.map(n => n.id));
-    const validEdges = graphData && Array.isArray(graphData.edges) ? graphData.edges.filter(e => e && nodeIds.has(e.source) && nodeIds.has(e.target)) : [];
-    if (process.env.NODE_ENV !== 'production') {
-        console.log('[WAFView] Final valid nodes:', validNodes);
-        console.log('[WAFView] Final valid edges:', validEdges);
+    // Compute isParent and isChild for each node based on edges
+    function annotateNodesWithParentChild(nodes, edges) {
+        const parentIds = new Set(edges.map(e => e.source));
+        const childIds = new Set(edges.map(e => e.target));
+        return nodes.map(node => ({
+            ...node,
+            data: {
+                ...node.data,
+                isParent: parentIds.has(node.id),
+                isChild: childIds.has(node.id),
+            },
+        }));
     }
+
+    // Sort nodes according to orderBy
+    function sortNodes(nodes, orderBy) {
+        let nodesCopy = [...nodes];
+        if (orderBy === 'number') {
+            nodesCopy.sort((a, b) => {
+                const getNum = (node, idx) => {
+                    if (typeof node.data?.Priority === 'number') return node.data.Priority;
+                    if (typeof node.data?.number === 'number') return node.data.number;
+                    const parsed = parseInt(node.id, 10);
+                    if (!isNaN(parsed)) return parsed;
+                    const match = String(node.id).match(/(\d+)$/);
+                    if (match) return parseInt(match[1], 10);
+                    return idx;
+                };
+                const aNum = getNum(a, nodes.indexOf(a));
+                const bNum = getNum(b, nodes.indexOf(b));
+                return aNum - bNum;
+            });
+        } else if (orderBy === 'dependency') {
+            // Parent/child sort
+            nodesCopy.sort((a, b) => {
+                const getRank = (n) => {
+                    const p = n.data?.isParent;
+                    const c = n.data?.isChild;
+                    if (!p && !c) return 0; // neither
+                    if (p && !c) return 1; // parent only
+                    if (p && c) return 2; // both
+                    if (!p && c) return 3; // child only
+                    return 4; // fallback
+                };
+                return getRank(a) - getRank(b);
+            });
+        }
+        return nodesCopy;
+    }
+
+    // Defensive filtering and debugging before rendering
+    const validNodes = graphData && Array.isArray(graphData.nodes) ? graphData.nodes : [];
+    const annotatedNodes = annotateNodesWithParentChild(validNodes, graphData && Array.isArray(graphData.edges) ? graphData.edges : []);
+    const sortedNodes = sortNodes(annotatedNodes, orderBy);
+    const nodeIds = new Set(sortedNodes.map(n => n.id));
+    const validEdges = graphData && Array.isArray(graphData.edges) ? graphData.edges.filter(e => e && nodeIds.has(e.source) && nodeIds.has(e.target)) : [];
+
+    // Debugging output for graph rendering
+    useEffect(() => {
+        console.log('[WAFView] validNodes:', validNodes.length, validNodes);
+        console.log('[WAFView] annotatedNodes:', annotatedNodes.length, annotatedNodes);
+        console.log('[WAFView] sortedNodes:', sortedNodes.length, sortedNodes);
+        console.log('[WAFView] validEdges:', validEdges.length, validEdges);
+    }, [validNodes, annotatedNodes, sortedNodes, validEdges]);
+
+    // Ensure orderBy is always valid for the Topbar select
+    const validOrderBys = ['number', 'dependency'];
+    const safeOrderBy = validOrderBys.includes(orderBy) ? orderBy : 'number';
+    // Ensure nodesPerRow is always valid for the Topbar select
+    const validNodesPerRow = Array.from({length: 15}, (_, i) => i + 2);
+    const safeNodesPerRow = validNodesPerRow.includes(nodesPerRow) ? nodesPerRow : 8;
 
     return (
         <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', overflow: 'hidden' }}>
@@ -659,6 +586,8 @@ const WAFView = ({
                     setViewType={setViewType}
                     orderBy={orderBy}
                     setOrderBy={setOrderBy}
+                    nodesPerRow={nodesPerRow}
+                    setNodesPerRow={setNodesPerRow}
                     rules={originalRules}
                     treeStyle={treeStyle}
                     setTreeStyle={setTreeStyle}
@@ -669,31 +598,32 @@ const WAFView = ({
                 <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', width: '100%', height: '100%' }}>
                     <Box sx={{ width: 'calc(100% - 144px)', maxWidth: '1400px', margin: '72px 120px 0px 24px', height: 'calc(100vh - 120px)', position: 'relative', background: 'none', backgroundColor: darkTheme ? 'rgba(34, 34, 34, 0.3)' : 'rgba(255, 255, 255, 0.3)', overflow: 'hidden', borderRadius: 0 }}>
                         <ReactFlowProvider>
-                            {viewType === 'tree' ? (
-                                validNodes.length > 0 ? (
-                                    <FlowChart
-                                        ref={flowRef}
-                                        allNodes={validNodes}
-                                        allEdges={validEdges}
-                                        selectedNode={selectedNode}
-                                        setSelectedNode={handleNodeClick}
-                                        searchTerm={searchTerm}
-                                        showArrows={showArrows}
-                                        dottedLines={dottedLines}
-                                        animatedLines={animatedLines}
-                                        treeSetup={treeStyle}
-                                        orderBy={effectiveOrderBy}
-                                        treeStyle={treeStyle}
-                                    />
-                                ) : (
-                                    <Box sx={{ p: 4, textAlign: 'center', color: darkTheme ? '#fff' : '#333' }}>
-                                        No valid nodes to display. Check your data or layout.
-                                    </Box>
-                                )
-                            ) : null}
+                            {(viewType === 'tree' || viewType === 'radial' || viewType === 'angled') && sortedNodes.length > 0 && (
+                                <FlowChart
+                                    ref={flowRef}
+                                    allNodes={sortedNodes}
+                                    allEdges={validEdges}
+                                    selectedNode={selectedNode}
+                                    setSelectedNode={handleNodeClick}
+                                    searchTerm={searchTerm}
+                                    showArrows={showArrows}
+                                    dottedLines={dottedLines}
+                                    animatedLines={animatedLines}
+                                    layoutType={viewType === 'tree' ? 'collapsible' : viewType}
+                                    orderBy={orderBy}
+                                    nodesPerRow={nodesPerRow}
+                                />
+                            )}
+                            {viewType === 'inspector' && (
+                                <InspectorView
+                                    rules={filteredRules}
+                                    dependencyNodes={dependencyNodes}
+                                    dependencyEdges={dependencyEdges}
+                                />
+                            )}
                             {viewType === 'table' && (
                                 <TableView
-                                    rules={effectiveOrderBy === 'dependencies' ? originalRules : originalRules}
+                                    rules={filteredRules}
                                     orderBy={effectiveOrderBy}
                                     orderDirection={orderDirection}
                                     onRuleClick={handleRuleClick}
@@ -702,7 +632,7 @@ const WAFView = ({
                             )}
                             {viewType === 'card' && (
                                 <CardView
-                                    rules={effectiveOrderBy === 'dependencies' ? originalRules : originalRules}
+                                    rules={filteredRules}
                                     orderBy={effectiveOrderBy}
                                     orderDirection={orderDirection}
                                     onRuleClick={handleRuleClick}
@@ -715,13 +645,14 @@ const WAFView = ({
             </Box>
             {rulePopupOpen && popupRule && (
                 <RulePopup
-                    dataArray={originalRules}
+                    dataArray={viewType === 'tree' ? graphData?.nodes || [] : dependencyNodes}
+                    allRules={originalRules}
                     selectedNode={popupRule}
                     onClose={() => setRulePopupOpen(false)}
                     aiSummary={aiSummary}
                     responseStyle={responseStyle}
                     onChangeStyle={handleChangeAiStyle}
-                    edges={validEdges}
+                    edges={dependencyEdges}
                 />
             )}
             {warningsPopupOpen && popupData && (
@@ -739,7 +670,7 @@ const WAFView = ({
             {/* Loader Popup for loading rules */}
             <RulesLoaderPopup
                 open={loaderPopupOpen}
-                onRulesReceived={handleRulesReceived}
+                onRulesLoaded={handleRulesReceived}
                 onClose={() => setLoaderPopupOpen(false)}
             />
         </Box>

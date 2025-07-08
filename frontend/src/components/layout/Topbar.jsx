@@ -4,7 +4,6 @@ import { useThemeContext } from '../../context/ThemeContext';
 import IconButton from '@mui/material/IconButton';
 import ReportIcon from '@mui/icons-material/Report';
 import Badge from '@mui/material/Badge';
-import DownloadIcon from '@mui/icons-material/Download';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ImageIcon from '@mui/icons-material/Image';
@@ -25,7 +24,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
  * TopBar component renders the top navigation bar with search, toggles, and action buttons.
  * Handles search, theme toggles, and export actions.
  */
-const TopBar = ({
+const Topbar = ({
     searchTerm,
     setSearchTerm,
     setLoaderPopupOpen,
@@ -34,10 +33,6 @@ const TopBar = ({
     onExportPdf,
     onExportImage,
     onWarnings,
-    isDebugger,
-    onExportVectorPdf,
-    isFlowChartReady = false,
-    onExportSvg,
     showArrows,
     setShowArrows,
     dottedLines,
@@ -46,21 +41,21 @@ const TopBar = ({
     setAnimatedLines,
     viewType,
     setViewType,
-    treeSetup,
-    setTreeSetup,
     orderBy,
     setOrderBy,
     rules,
     treeStyle,
     setTreeStyle,
     orderDirection,
-    setOrderDirection
+    setOrderDirection,
+    nodesPerRow,
+    setNodesPerRow
 }) => {
-    console.log('[TopBar] Render with props:', {
-        searchTerm,
-        aclDetails,
-        warningCount
-    });
+    // console.log('[TopBar] Render with props:', {
+    //     searchTerm,
+    //     aclDetails,
+    //     warningCount
+    // });
 
     const { darkTheme, setDarkTheme } = useThemeContext();
     const [searchOpen, setSearchOpen] = useState(false);
@@ -85,12 +80,14 @@ const TopBar = ({
     if (rules && Array.isArray(rules) && rules.length > 0) {
         orderOptions = Object.keys(rules[0]);
     }
+    // Fallback orderBy if not in options
+    const validOrderBy = orderOptions.includes(orderBy) ? orderBy : orderOptions[0];
 
     /**
      * Handles the click event for the file load button.
      */
     const handleFileButtonClick = () => {
-        console.log('[TopBar] File button clicked');
+        // console.log('[TopBar] File button clicked');
         setLoaderPopupOpen(true);
     };
 
@@ -98,7 +95,7 @@ const TopBar = ({
      * Handles changes in the search input field.
      */
     const handleSearchChange = (event) => {
-        console.log('[TopBar] Search changed:', event.target.value);
+        // console.log('[TopBar] Search changed:', event.target.value);
         setSearchTerm(event.target.value);
     };
 
@@ -106,7 +103,7 @@ const TopBar = ({
      * Handles the click event for the warnings button.
      */
     const handleWarningsClick = () => {
-        console.log('[TopBar] Warnings clicked');
+        // console.log('[TopBar] Warnings clicked');
         onWarnings();
     };
 
@@ -114,7 +111,7 @@ const TopBar = ({
      * Handles the click event for the PDF export button.
      */
     const handleExportPdf = () => {
-        console.log('[TopBar] Export PDF clicked');
+        // console.log('[TopBar] Export PDF clicked');
         onExportPdf();
     };
 
@@ -122,7 +119,7 @@ const TopBar = ({
      * Handles the click event for the image export button.
      */
     const handleExportImage = () => {
-        console.log('[TopBar] Export Image clicked');
+        // console.log('[TopBar] Export Image clicked');
         onExportImage();
     };
 
@@ -142,6 +139,7 @@ const TopBar = ({
                 boxShadow: darkTheme ? '0 4px 6px rgba(0, 0, 0, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
                 backdropFilter: 'blur(10px)',
                 zIndex: 1201,
+                minHeight: 56,
                 '& .MuiButton-outlined': {
                     borderColor: darkTheme ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
                     color: darkTheme ? '#fff' : '#333',
@@ -163,162 +161,121 @@ const TopBar = ({
                 sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: { xs: '4px 4px', sm: '8px 16px' },
-                    flexWrap: 'wrap',
+                    justifyContent: 'flex-start',
+                    padding: { xs: '2px 2px', sm: '4px 8px' },
                     gap: 1,
-                    minHeight: 64,
+                    minHeight: 48,
+                    width: '100%',
+                    overflowX: 'auto',
+                    flexWrap: 'nowrap',
+                    whiteSpace: 'nowrap',
                 }}
             >
-                <Stack direction="row" alignItems="center" spacing={1} divider={<Divider orientation="vertical" flexItem />} sx={{ flex: 1, flexWrap: 'wrap', gap: 1 }}>
-                    {/* Group 1: Title and dropdowns */}
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="h6" sx={{ fontSize: '1.1rem', color: 'inherit', minWidth: 120 }}>
-                            {aclDetails?.aclName || 'WAF Rules'}
-                    </Typography>
-                        <Select
-                        size="small"
-                            value={viewType}
-                            onChange={e => setViewType(e.target.value)}
-                        sx={{
-                                minWidth: 110,
-                                background: darkTheme ? '#222' : '#fff',
-                                color: darkTheme ? '#fff' : '#333',
-                                border: darkTheme ? '1px solid #444' : '1px solid #ccc',
-                                '.MuiOutlinedInput-notchedOutline': {
-                                    borderColor: darkTheme ? '#444' : '#ccc',
-                                },
-                                '& .MuiSvgIcon-root': {
-                                    color: darkTheme ? '#fff' : '#333',
-                                },
+                {/* Title */}
+                <Typography variant="h6" sx={{ fontSize: '1.05rem', color: 'inherit', minWidth: 90, mr: 1, flexShrink: 0 }}>
+                    {aclDetails?.aclName || 'WAF Rules'}
+                </Typography>
+                {/* View dropdown */}
+                <Select
+                    size="small"
+                    value={viewType}
+                    onChange={e => setViewType(e.target.value)}
+                    sx={{ minWidth: 110, maxWidth: 130, background: darkTheme ? '#222' : '#fff', color: darkTheme ? '#fff' : '#333', border: darkTheme ? '1px solid #444' : '1px solid #ccc', mx: 0.5, flexShrink: 0 }}
+                >
+                    <MenuItem value="tree">Tree (Dependency)</MenuItem>
+                    <MenuItem value="radial">Radial</MenuItem>
+                    <MenuItem value="angled">Angled</MenuItem>
+                    <MenuItem value="inspector">Inspector</MenuItem>
+                </Select>
+                {/* Order dropdown */}
+                <Select
+                    size="small"
+                    value={orderBy}
+                    onChange={e => setOrderBy(e.target.value)}
+                    sx={{ minWidth: 90, maxWidth: 110, mx: 0.5, flexShrink: 0 }}
+                >
+                    <MenuItem value="number">Number</MenuItem>
+                    <MenuItem value="dependency">Dependency</MenuItem>
+                </Select>
+                {/* Nodes per row dropdown */}
+                <Select
+                    size="small"
+                    value={nodesPerRow}
+                    onChange={e => setNodesPerRow(Number(e.target.value))}
+                    sx={{ minWidth: 70, maxWidth: 90, mx: 0.5, flexShrink: 0 }}
+                >
+                    {Array.from({length: 15}, (_, i) => i + 2).map(val => (
+                        <MenuItem key={val} value={val}>{val}</MenuItem>
+                    ))}
+                </Select>
+                {/* Search */}
+                <Box ref={searchRef} sx={{ display: 'flex', alignItems: 'center', mx: 0.5, flexShrink: 0 }}>
+                    {searchOpen ? (
+                        <TextField
+                            size="small"
+                            autoFocus
+                            placeholder="Search..."
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            onBlur={() => setSearchOpen(false)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') setSearchOpen(false);
                             }}
-                        >
-                            <MenuItem value="tree">Tree</MenuItem>
-                            <MenuItem value="table">Table</MenuItem>
-                            <MenuItem value="card">Card</MenuItem>
-                        </Select>
-                        {viewType === 'tree' && (
-                            <Select
-                                size="small"
-                                value={treeStyle}
-                                onChange={e => {
-                                    console.log('[TopBar] treeStyle changed:', e.target.value);
-                                    setTreeStyle(e.target.value);
-                                }}
-                                sx={{
-                                    minWidth: 110,
-                                    background: darkTheme ? '#222' : '#fff',
-                                    color: darkTheme ? '#fff' : '#333',
-                                    border: darkTheme ? '1px solid #444' : '1px solid #ccc',
-                                    '.MuiOutlinedInput-notchedOutline': {
-                                        borderColor: darkTheme ? '#444' : '#ccc',
-                                    },
-                                    '& .MuiSvgIcon-root': {
-                                        color: darkTheme ? '#fff' : '#333',
-                                },
-                                }}
-                            >
-                                <MenuItem value="dependency">Dependency</MenuItem>
-                                <MenuItem value="radial">Radial</MenuItem>
-                                <MenuItem value="angled">Angled</MenuItem>
-                            </Select>
-                        )}
-                        {viewType !== 'tree' && (
-                            <>
-                                <Select
-                                    size="small"
-                                    value={orderBy}
-                                    onChange={e => setOrderBy(e.target.value)}
-                                    sx={{
-                                        minWidth: 140,
-                                        background: darkTheme ? '#222' : '#fff',
-                                        color: darkTheme ? '#fff' : '#333',
-                                        border: darkTheme ? '1px solid #444' : '1px solid #ccc',
-                                        '.MuiOutlinedInput-notchedOutline': {
-                                            borderColor: darkTheme ? '#444' : '#ccc',
-                                        },
-                                        '& .MuiSvgIcon-root': {
-                                            color: darkTheme ? '#fff' : '#333',
-                            },
-                        }}
-                                >
-                                    {orderOptions.map(opt => (
-                                        <MenuItem value={opt}>{opt}</MenuItem>
-                                    ))}
-                                </Select>
-                                <Tooltip title={orderDirection === 'asc' ? 'Ascending' : 'Descending'}>
-                                    <IconButton onClick={() => setOrderDirection(orderDirection === 'asc' ? 'desc' : 'asc')} size="small">
-                                        {orderDirection === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
-                                    </IconButton>
-                                </Tooltip>
-                            </>
-                        )}
-                    </Stack>
-                    {/* Group 2: Search and view controls */}
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                        {/* Collapsible Search */}
-                        <Box ref={searchRef} sx={{ display: 'flex', alignItems: 'center' }}>
-                            {searchOpen ? (
-                                <TextField
-                                    size="small"
-                                    autoFocus
-                                    placeholder="Search..."
-                                    value={searchTerm}
-                                    onChange={handleSearchChange}
-                                    onBlur={() => setSearchOpen(false)}
-                                    sx={{ width: 200, transition: 'width 0.3s' }}
-                                />
-                            ) : (
-                                <Tooltip title="Search">
-                                    <IconButton onClick={() => setSearchOpen(true)}>
-                                        <SearchIcon />
-                                    </IconButton>
-                                </Tooltip>
-                            )}
-                        </Box>
-                    <Tooltip title={showArrows ? "Hide Arrows" : "Show Arrows"}>
-                            <IconButton onClick={() => setShowArrows(!showArrows)}>
-                            {showArrows ? <VisibilityIcon /> : <VisibilityOffIcon />}
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title={dottedLines ? "Use Solid Lines" : "Use Dotted Lines"}>
-                            <IconButton onClick={() => setDottedLines(!dottedLines)}>
-                            {dottedLines ? <LinearScaleIcon /> : <RemoveIcon />}
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title={animatedLines ? "Disable Animation" : "Enable Animation"}>
-                            <IconButton onClick={() => setAnimatedLines(!animatedLines)}>
-                            <WavesIcon color={animatedLines ? "primary" : "inherit"} />
-                        </IconButton>
-                    </Tooltip>
-                    </Stack>
-                    {/* Group 3: Action buttons */}
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                        <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 40 }}>
-                        Load Rules
-                    </Button>
-                        <IconButton onClick={handleExportPdf}>
-                        <PictureAsPdfIcon />
-                    </IconButton>
-                        <IconButton onClick={handleExportImage}>
-                        <ImageIcon />
-                    </IconButton>
-                        <IconButton onClick={handleWarningsClick}>
-                        <Badge badgeContent={warningCount || 0} color="warning">
-                            <ReportIcon />
-                        </Badge>
-                    </IconButton>
-                        {/* Dark mode toggle */}
-                        <Tooltip title={darkTheme ? 'Light Mode' : 'Dark Mode'}>
-                            <IconButton onClick={() => setDarkTheme(!darkTheme)}>
-                                {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
+                            sx={{ width: 120, minWidth: 80, maxWidth: 140, transition: 'width 0.3s', mx: 0.5 }}
+                        />
+                    ) : (
+                        <Tooltip title="Search">
+                            <IconButton onClick={() => setSearchOpen(true)} size="small">
+                                <SearchIcon />
                             </IconButton>
                         </Tooltip>
-                    </Stack>
-                </Stack>
+                    )}
+                </Box>
+                {/* Arrows toggle */}
+                <Tooltip title={showArrows ? "Hide Arrows" : "Show Arrows"}>
+                    <IconButton onClick={() => setShowArrows(!showArrows)} size="small">
+                        {showArrows ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                    </IconButton>
+                </Tooltip>
+                {/* Dotted lines toggle */}
+                <Tooltip title={dottedLines ? "Use Solid Lines" : "Use Dotted Lines"}>
+                    <IconButton onClick={() => setDottedLines(!dottedLines)} size="small">
+                        {dottedLines ? <LinearScaleIcon /> : <RemoveIcon />}
+                    </IconButton>
+                </Tooltip>
+                {/* Animated lines toggle */}
+                <Tooltip title={animatedLines ? "Disable Animation" : "Enable Animation"}>
+                    <IconButton onClick={() => setAnimatedLines(!animatedLines)} size="small">
+                        <WavesIcon color={animatedLines ? "primary" : "inherit"} />
+                    </IconButton>
+                </Tooltip>
+                {/* Load Rules */}
+                <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 36, minWidth: 90, mx: 0.5, flexShrink: 0 }}>
+                    Load Rules
+                </Button>
+                {/* Export PDF */}
+                <IconButton onClick={handleExportPdf} size="small">
+                    <PictureAsPdfIcon />
+                </IconButton>
+                {/* Export Image */}
+                <IconButton onClick={handleExportImage} size="small">
+                    <ImageIcon />
+                </IconButton>
+                {/* Warnings */}
+                <IconButton onClick={handleWarningsClick} size="small">
+                    <Badge badgeContent={warningCount || 0} color="warning">
+                        <ReportIcon />
+                    </Badge>
+                </IconButton>
+                {/* Dark mode toggle */}
+                <Tooltip title={darkTheme ? 'Light Mode' : 'Dark Mode'}>
+                    <IconButton onClick={() => setDarkTheme(!darkTheme)} size="small">
+                        {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
+                    </IconButton>
+                </Tooltip>
             </Box>
         </AppBar>
     );
 };
 
-export default TopBar;
+export default Topbar;

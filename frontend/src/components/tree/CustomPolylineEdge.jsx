@@ -5,22 +5,11 @@ const OFFSET = 30; // adjust as needed for elbow
 
 const CustomPolylineEdge = ({ id, sourceX, sourceY, targetX, targetY, data, animated, style = {}, markerEnd }) => {
   let points;
-  if (data?.direction === 'parent') {
-    // Parent: elbow from source to top right of target
-    const midX = targetX + OFFSET;
+  if (data?.direction === 'parent' || data?.direction === 'child' || data?.direction === 'angled') {
+    // Go down first, then out
     points = [
       [sourceX, sourceY],
-      [midX, sourceY],
-      [midX, targetY],
-      [targetX, targetY]
-    ];
-  } else if (data?.direction === 'child') {
-    // Child: elbow from source to bottom left of target
-    const midX = targetX - OFFSET;
-    points = [
-      [sourceX, sourceY],
-      [midX, sourceY],
-      [midX, targetY],
+      [sourceX, targetY],
       [targetX, targetY]
     ];
   } else {

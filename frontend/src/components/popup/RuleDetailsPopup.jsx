@@ -13,14 +13,6 @@ const RuleDetailsPopup = ({ rule, dataArray, centerNode, onOpenChat, aiSummary, 
   const ruleIndex = parseInt(rule.id, 10);
   const aiRuleData = aiSummary && aiSummary[ruleIndex];
 
-  console.log('[RuleDetailsPopup] Debug:', {
-    ruleId: rule.id,
-    ruleIndex,
-    aiSummaryLength: aiSummary?.length || 0,
-    aiRuleData,
-    hasDependencies: aiRuleData?.Dependencies?.length > 0
-  });
-
   return (
     <div className="rule-popup-content" style={{ backgroundColor: getColor('background'), }}>
       <div className="rule-header">

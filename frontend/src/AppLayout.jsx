@@ -4,6 +4,11 @@ import TopBar from './components/layout/Topbar';
 import Sidebar from './components/layout/Sidebar';
 import { Box } from '@mui/material';
 import { useThemeContext } from './context/ThemeContext';
+import RulesLoaderPopup from './components/upload/RulesLoaderPopup';
+import { normalizeRulesData } from './components/WAFView/WAFView';
+import AIChatPanel from './components/popup/AIChatPanel';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import Modal from '@mui/material/Modal';
 
 /**
  * AppLayout component provides the main layout, top bar, sidebar, and context for the app.
@@ -26,6 +31,7 @@ export default function AppLayout() {
   const [treeSetup, setTreeSetup] = useState('collapsible'); // collapsible, horizontal, indented, etc.
   const [orderBy, setOrderBy] = useState('name'); // name, date, type, etc.
   const [treeStyle, setTreeStyle] = useState('dependency'); // dependency, radial, angled
+  const [aiChatOpen, setAiChatOpen] = useState(false);
 
   /**
    * Handles exporting the flowchart as a PDF file.
@@ -147,6 +153,62 @@ export default function AppLayout() {
           }} />
         </Box>
       </Box>
+      {/* Floating AI Chat Button */}
+      <button
+        onClick={() => setAiChatOpen(true)}
+        style={{
+          position: 'fixed',
+          bottom: 32,
+          right: 32,
+          zIndex: 3000,
+          width: 64,
+          height: 64,
+          borderRadius: '50%',
+          background: '#1976d2',
+          color: '#fff',
+          border: 'none',
+          boxShadow: '0 4px 16px rgba(25, 118, 210, 0.25)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 32,
+          transition: 'background 0.2s',
+        }}
+        title="Open AI Assistant"
+      >
+        <ChatBubbleOutlineIcon style={{ fontSize: 36 }} />
+      </button>
+      {/* AI Chat Modal */}
+      <Modal open={aiChatOpen} onClose={() => setAiChatOpen(false)} style={{ zIndex: 3500 }}>
+        <Box sx={{
+          position: 'fixed',
+          bottom: 100,
+          right: 40,
+          width: 420,
+          maxWidth: '95vw',
+          height: 540,
+          maxHeight: '90vh',
+          background: darkTheme ? '#23272f' : '#fff',
+          borderRadius: 4,
+          boxShadow: 24,
+          p: 0,
+          zIndex: 3501,
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <AIChatPanel isAIPage={false} />
+        </Box>
+      </Modal>
+      <RulesLoaderPopup
+        open={loaderPopupOpen}
+        onClose={() => setLoaderPopupOpen(false)}
+        onRulesLoaded={(rules) => {
+          setData(normalizeRulesData(rules));
+          setLoaderPopupOpen(false);
+          // Optionally, add a snackbar or notification here
+        }}
+      />
     </div>
   );
 }
