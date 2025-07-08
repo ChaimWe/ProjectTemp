@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useOutletContext } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { CssBaseline } from '@mui/material';
 import HomePage from './pages/HomePage';
