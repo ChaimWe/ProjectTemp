@@ -20,17 +20,18 @@ const CustomPolylineEdge = ({ id, sourceX, sourceY, targetX, targetY, data, anim
     ];
   }
   const pointsStr = points.map(([x, y]) => `${x},${y}`).join(' ');
-
+  // Opacity logic: full if highlighted, faded otherwise
+  const edgeOpacity = data?.highlighted ? 1 : 0.7;
   return (
-    <g>
+    <g aria-label="Edge">
       <polyline
         id={id}
         points={pointsStr}
         fill="none"
-        stroke="#22cc22"
-        strokeWidth={2}
+        stroke="#1976d2"
+        strokeWidth={3}
         markerEnd={markerEnd}
-        style={style}
+        style={{ ...style, opacity: edgeOpacity }}
         className={animated ? 'react-flow__edge-path--animated' : ''}
       />
     </g>

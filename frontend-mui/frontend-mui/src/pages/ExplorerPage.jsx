@@ -5,70 +5,43 @@ import { useDataSource } from '../context/DataSourceContext';
 import FlowChart from '../components/tree/FlowChart';
 import RuleDetailsSidebar from '../components/WAFView/RuleDetailsSidebar';
 import InspectorView from '../components/WAFView/InspectorView';
+import RuleTransformer from '../components/tree/RuleTransformer';
 
 export default function ExplorerPage() {
   const theme = useTheme();
   const [viewMode, setViewMode] = useState('tree');
+  React.useEffect(() => {
+    if (viewMode !== 'tree' && viewMode !== 'inspector') {
+      setViewMode('tree');
+    }
+  }, [viewMode]);
   const { aclData, albData, setAclData, setAlbData, clearAclData, clearAlbData } = useDataSource();
-  const [aclFileName, setAclFileName] = useState(null);
-  const [albFileName, setAlbFileName] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [ruleSet, setRuleSet] = useState('acl'); // 'acl' or 'alb'
 
-  // For now, use aclData for both views
-  const rules = useMemo(() => aclData?.Rules || [], [aclData]);
+  // Select rules based on ruleSet
+  const rules = useMemo(() => {
+    if (ruleSet === 'acl') return aclData?.Rules || [];
+    if (ruleSet === 'alb') return albData?.Rules || [];
+    return [];
+  }, [ruleSet, aclData, albData]);
 
-  // Build edges from dependencies, or infer from RuleLabels/LabelMatchStatement if needed
-  const edges = useMemo(() => {
-    const e = [];
-    rules.forEach(rule => {
-      const nodeId = rule.Name || rule.name;
-      // Prefer explicit dependencies
-      let deps = rule.dependencies || rule.Dependencies;
-      if (!deps) {
-        // Infer from LabelMatchStatement (WAF style)
-        const findLabelMatches = (obj) => {
-          if (!obj || typeof obj !== 'object') return [];
-          let matches = [];
-          if (obj.LabelMatchStatement && obj.LabelMatchStatement.Key) {
-            matches.push(obj.LabelMatchStatement.Key);
-          }
-          Object.values(obj).forEach(val => {
-            matches = matches.concat(findLabelMatches(val));
-          });
-          return matches;
-        };
-        deps = findLabelMatches(rule.Statement);
-      }
-      (Array.isArray(deps) ? deps : [deps]).forEach(dep => {
-        if (dep) e.push({ source: String(dep), target: String(nodeId), id: `edge-${dep}-${nodeId}`, type: 'custom' });
-      });
-    });
-    return e;
+  // Use RuleTransformer to process rules into nodes/edges
+  const transformed = useMemo(() => {
+    if (!rules.length) return { nodes: [], edges: [] };
+    const transformer = new RuleTransformer(rules);
+    const result = transformer.transformRules() || { nodes: [], edges: [] };
+    // Fallback: if no edges, create edges between consecutive nodes
+    if (result.nodes.length > 1 && (!result.edges || result.edges.length === 0)) {
+      result.edges = result.nodes.slice(1).map((node, i) => ({
+        id: `edge-fallback-${i}`,
+        source: result.nodes[i].id,
+        target: node.id,
+        type: 'custom',
+      }));
+    }
+    return result;
   }, [rules]);
-
-  // Compute isParent/isChild for each node based on edges
-  const nodeIdSet = new Set(rules.map(r => r.Name || r.name));
-  const parentMap = {};
-  const childMap = {};
-  edges.forEach(edge => {
-    parentMap[edge.source] = true;
-    childMap[edge.target] = true;
-  });
-
-  const nodes = useMemo(() => rules.map(r => {
-    const id = r.Name || r.name;
-    return {
-      id,
-      type: 'custom-node',
-      data: {
-        ...r,
-        name: id,
-        action: r.Action ? Object.keys(r.Action)[0] : r.action || '',
-        isParent: !!parentMap[id],
-        isChild: !!childMap[id],
-      }
-    };
-  }), [rules, parentMap, childMap]);
 
   // Handler for node selection in tree mode
   const handleNodeSelect = (nodeId) => {
@@ -92,15 +65,15 @@ export default function ExplorerPage() {
           : theme.palette.background.default,
       }}
     >
-      <Topbar viewMode={viewMode} setViewMode={setViewMode} />
+      <Topbar viewMode={viewMode} setViewMode={setViewMode} ruleSet={ruleSet} setRuleSet={setRuleSet} />
       <Stack direction="row" spacing={2} sx={{ mt: 2, mb: 2, ml: 2 }}>
-        <Button onClick={() => { clearAclData(); setAclFileName(null); }} disabled={!aclFileName} variant="outlined">Clear ACL</Button>
-        <Button onClick={() => { clearAlbData(); setAlbFileName(null); }} disabled={!albFileName} variant="outlined">Clear ALB</Button>
+        <Button onClick={() => { clearAclData(); }} disabled={!aclData} variant="outlined">Clear ACL</Button>
+        <Button onClick={() => { clearAlbData(); }} disabled={!albData} variant="outlined">Clear ALB</Button>
       </Stack>
       <Box sx={{ position: 'relative', zIndex: 1, width: '100vw', height: 'calc(100vh - 112px)', mt: 8 }}>
         {viewMode === 'tree' ? (
           <>
-            <FlowChart allNodes={nodes} allEdges={edges} selectedNode={selectedNode ? (selectedNode.Name || selectedNode.name) : null} setSelectedNode={handleNodeSelect} />
+            <FlowChart allNodes={transformed.nodes} allEdges={transformed.edges} selectedNode={selectedNode ? (selectedNode.Name || selectedNode.name) : null} setSelectedNode={handleNodeSelect} />
             <Drawer
               anchor="right"
               open={!!selectedNode}

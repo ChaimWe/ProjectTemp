@@ -112,7 +112,7 @@ const InspectorView = ({ rules, showSubgraph, initialSelected }) => {
       const nodeId = rule.Name || rule.name;
       const deps = rule.dependencies || rule.Dependencies || [];
       (Array.isArray(deps) ? deps : [deps]).forEach(dep => {
-        if (dep) edges.push({ source: String(dep), target: String(nodeId), id: `edge-${dep}-${nodeId}` });
+        if (dep) edges.push({ source: String(dep), target: String(nodeId), id: `edge-${dep}-${nodeId}`, type: 'custom' });
       });
     });
     return edges;
@@ -218,7 +218,7 @@ const InspectorView = ({ rules, showSubgraph, initialSelected }) => {
                     setShowArrows={() => {}}
                     dottedLines={false}
                     animatedLines={false}
-                    treeSetup={'popupLayered'}
+                    treeSetup={'popupLayered'} // Ensure popupLayered layout is used
                     orderBy={'dependency'}
                   />
                 </Box>
