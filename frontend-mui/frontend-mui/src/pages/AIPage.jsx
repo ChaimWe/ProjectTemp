@@ -12,7 +12,8 @@ const AIPage = () => {
     const [loaderOpen, setLoaderOpen] = React.useState(false);
     const [snackbar, setSnackbar] = React.useState({ open: false, message: '', severity: 'info' });
     const { darkTheme, getColor } = useThemeContext();
-    const { data: rules = [], setData: setRules } = useOutletContext();
+    const outletContext = useOutletContext() || {};
+    const { data: rules = [], setData: setRules } = outletContext;
 
     const handleRulesLoaded = (loadedRules) => {
         setRules(loadedRules);

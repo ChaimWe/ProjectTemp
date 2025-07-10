@@ -24,7 +24,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { Button } from '@mui/material';
 
-// Move nodeTypes and edgeTypes outside the component to avoid React Flow warning
+// Define nodeTypes and edgeTypes as constants outside the component (no hooks)
 const nodeTypes = { 'custom-node': CustomNode };
 const edgeTypes = { custom: CustomPolylineEdge };
 
@@ -43,6 +43,7 @@ function getNodeColor(node) {
   return 'gray';
 }
 
+// Add props for layoutType, orderBy, nodesPerRow, setShowArrows, dottedLines, animatedLines (to match old code)
 const FlowChartInner = forwardRef(({
     allNodes,
     allEdges,
@@ -50,12 +51,15 @@ const FlowChartInner = forwardRef(({
     setSelectedNode,
     searchTerm,
     showArrows,
-    orderBy: orderByProp = 'number',
+    setShowArrows,
+    dottedLines,
+    animatedLines,
+    layoutType: layoutTypeProp = 'dependency',
+    orderBy: orderByProp = 'dependency',
+    nodesPerRow: nodesPerRowProp = 8,
 }, ref) => {
-    const [orderBy, setOrderBy] = useState(orderByProp);
     const [hoveredNode, setHoveredNode] = useState(null);
     const [showHelp, setShowHelp] = useState(false);
-    const [nodesPerRow, setNodesPerRow] = useState(8);
     const [nodes, setNodes] = useState([]);
     const [edges, setEdges] = useState([]);
     const [highlightedEdges, setHighlightedEdges] = useState(new Set());
@@ -68,140 +72,255 @@ const FlowChartInner = forwardRef(({
     const reactFlowInstance = useReactFlow();
     const [isLocked, setIsLocked] = useState(false);
 
-    // Remove useMemo for nodeTypes/edgeTypes, use the above
-    // const nodeTypes = useMemo(() => ({
-    //     'custom-node': CustomNode,
-    // }), []);
-    // const edgeTypes = useMemo(() => ({
-    //     custom: CustomPolylineEdge,
-    // }), []);
+    // Add local state for controls
+    const [layoutType, setLayoutType] = useState(layoutTypeProp);
+    const [orderBy, setOrderBy] = useState(orderByProp);
+    const [nodesPerRow, setNodesPerRow] = useState(nodesPerRowProp);
 
-    const initializeData = useCallback((nodes, edges) => {
-        if (nodes?.length > 0 && edges?.length >= 0) {
-            setNodes(nodes);
-            setEdges(edges);
-            setIsInitialized(true);
-            return true;
-        }
-        return false;
-    }, [setNodes, setEdges]);
-
-    // Node grouping and layout logic
+    // --- BEGIN PORTED TREE LOGIC FROM OLD FLOWCHART ---
+    // Dependency grouping and fallback edge logic
     const colorOrder = ['gray', 'blue', 'light blue', 'green'];
-    // Preprocess: set isParent and isChild on each node
-    const preprocessedNodes = useMemo(() => {
-        if (!allNodes) return [];
-        const parentIds = new Set((allEdges || []).map(e => e.source));
-        const childIds = new Set((allEdges || []).map(e => e.target));
-        return allNodes.map(n => ({
-            ...n,
-            data: {
-                ...n.data,
-                isParent: parentIds.has(n.id),
-                isChild: childIds.has(n.id),
-            }
-        }));
-    }, [allNodes, allEdges]);
-
-    const sortedNodes = useMemo(() => {
-        if (!preprocessedNodes) return [];
-        let nodesCopy = [...preprocessedNodes];
-        // Assign color property for grouping
-        nodesCopy = nodesCopy.map(n => ({
-          ...n,
-          data: {
-            ...n.data,
-            color: getNodeColor(n)
-          }
-        }));
-        if (orderBy === 'dependency') {
-          // Group nodes by color/type for dependency sort
-          const colorGroups = {
-            gray: [],
-            blue: [],
-            'light blue': [],
-            green: [],
-          };
-          nodesCopy.forEach(n => {
-            const color = (n.data.color || '').toLowerCase();
-            if (colorGroups[color]) colorGroups[color].push(n);
-            else colorGroups.gray.push(n);
-          });
-          // Flatten in color order
-          return colorOrder.flatMap(color => colorGroups[color]);
-        }
-        // Default: sort by number
-        nodesCopy.sort((a, b) => {
-          const getNum = (node, idx) => {
-            if (typeof node.data?.Priority === 'number') return node.data.Priority;
-            if (typeof node.data?.number === 'number') return node.data.number;
-            const parsed = parseInt(node.id, 10);
-            if (!isNaN(parsed)) return parsed;
-            const match = String(node.id).match(/(\d+)$/);
-            if (match) return parseInt(match[1], 10);
-            return idx;
-          };
-          const aNum = getNum(a, preprocessedNodes.indexOf(a));
-          const bNum = getNum(b, preprocessedNodes.indexOf(b));
-          return aNum - bNum;
-        });
-        return nodesCopy;
-    }, [preprocessedNodes, allEdges, orderBy]);
-
-    // Layout nodes in grouped rows for dependency sort
-    const layoutNodes = useCallback((nodes, edges, orderBy, nodesPerRow) => {
-      if (orderBy === 'dependency') {
-        // Group nodes by color/type
-        const colorGroups = {
-          gray: [],
-          blue: [],
-          'light blue': [],
-          green: [],
-        };
+    // Topological sort for dependency order
+    const topologicalSort = (nodes, edges) => {
+        const inDegree = {};
+        const graph = {};
         nodes.forEach(n => {
-          const color = (n.data.color || '').toLowerCase();
-          if (colorGroups[color]) colorGroups[color].push(n);
-          else colorGroups.gray.push(n);
+            inDegree[n.id] = 0;
+            graph[n.id] = [];
         });
-        const GRID_SIZE = 180;
-        let positioned = [];
-        let y = 0;
-        colorOrder.forEach(group => {
-          const groupNodes = colorGroups[group];
-          groupNodes.forEach((node, i) => {
-            positioned.push({
-              ...node,
-              position: { x: safeNumber(i * GRID_SIZE), y: safeNumber(y) },
+        edges.forEach(e => {
+            if (graph[e.source]) {
+                graph[e.source].push(e.target);
+                inDegree[e.target] = (inDegree[e.target] || 0) + 1;
+            }
+        });
+        const queue = nodes.filter(n => inDegree[n.id] === 0).map(n => n.id);
+        const result = [];
+        const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+        while (queue.length) {
+            const id = queue.shift();
+            if (nodeMap[id]) result.push(nodeMap[id]);
+            (graph[id] || []).forEach(nei => {
+                inDegree[nei]--;
+                if (inDegree[nei] === 0) queue.push(nei);
             });
-          });
-          if (groupNodes.length > 0) y += GRID_SIZE;
-        });
-        return positioned;
-      } else {
-        // Default to grid
+        }
+        // If cycle, fallback to original order
+        if (result.length !== nodes.length) return nodes;
+        return result;
+    };
+    // Group and sort nodes
+    const sortedNodes = useMemo(() => {
+        if (!allNodes) return [];
+        let nodesCopy = [...allNodes];
+        if (orderBy === 'name') {
+            nodesCopy.sort((a, b) => (a.data.name || '').localeCompare(b.data.name || ''));
+        } else if (orderBy === 'date') {
+            nodesCopy.sort((a, b) => new Date(a.data.date || 0) - new Date(b.data.date || 0));
+        } else if (orderBy === 'type') {
+            nodesCopy.sort((a, b) => (a.data.type || '').localeCompare(b.data.type || ''));
+        } else if (orderBy === 'number') {
+            nodesCopy.sort((a, b) => {
+                const getNum = (node, idx) => {
+                    if (typeof node.data?.Priority === 'number') return node.data.Priority;
+                    if (typeof node.data?.number === 'number') return node.data.number;
+                    const parsed = parseInt(node.id, 10);
+                    if (!isNaN(parsed)) return parsed;
+                    const match = String(node.id).match(/(\d+)$/);
+                    if (match) return parseInt(match[1], 10);
+                    return idx;
+                };
+                const aNum = getNum(a, allNodes.indexOf(a));
+                const bNum = getNum(b, allNodes.indexOf(b));
+                return aNum - bNum;
+            });
+        } else if (orderBy === 'dependency') {
+            nodesCopy.sort((a, b) => {
+                const getRank = (n) => {
+                    const p = n.data?.isParent;
+                    const c = n.data?.isChild;
+                    if (!p && !c) return 0; // neither
+                    if (p && !c) return 1; // parent only
+                    if (p && c) return 2; // both
+                    if (!p && c) return 3; // child only
+                    return 4; // fallback
+                };
+                return getRank(a) - getRank(b);
+            });
+        } else if (orderBy === 'color') {
+            nodesCopy.sort((a, b) => {
+                const aIdx = colorOrder.indexOf((a.data.color || '').toLowerCase());
+                const bIdx = colorOrder.indexOf((b.data.color || '').toLowerCase());
+                return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+            });
+        }
+        return nodesCopy;
+    }, [allNodes, orderBy]);
+    // Layout logic based on layoutType
+    const layoutNodes = useCallback((nodes) => {
+        if (layoutType === 'radial') {
+            // Radial layout: position nodes in a circle
+            const centerX = 500;
+            const centerY = 400;
+            const radius = 300;
+            const angleStep = (2 * Math.PI) / nodes.length;
+            return nodes.map((node, i) => ({
+                ...node,
+                position: {
+                    x: centerX + radius * Math.cos(i * angleStep),
+                    y: centerY + radius * Math.sin(i * angleStep),
+                },
+            }));
+        } else if (layoutType === 'angled') {
+            // Angled layout: position nodes in a diagonal (angled) line, then center it
+            const startX = 0;
+            const startY = 0;
+            const step = 40;
+            let nodesCopy = nodes.map((node, i) => ({
+                ...node,
+                position: {
+                    x: startX + i * step,
+                    y: startY + i * step,
+                },
+            }));
+            // Center the diagonal in the viewport
+            const minX = Math.min(...nodesCopy.map(n => n.position.x));
+            const maxX = Math.max(...nodesCopy.map(n => n.position.x));
+            const minY = Math.min(...nodesCopy.map(n => n.position.y));
+            const maxY = Math.max(...nodesCopy.map(n => n.position.y));
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            const desiredCenterX = 600;
+            const desiredCenterY = 400;
+            const offsetX = desiredCenterX - centerX;
+            const offsetY = desiredCenterY - centerY;
+            nodesCopy.forEach(node => {
+                node.position.x += offsetX;
+                node.position.y += offsetY;
+            });
+            return nodesCopy;
+        } else {
+            // Default to dependency/hierarchical layout
+            // (Assume nodes are already positioned by parent)
+            return nodes;
+        }
+    }, [layoutType]);
+    // Grid and dependency layout
+    const gridNodes = useMemo(() => {
+        if (!sortedNodes?.length) return [];
+        const NODES_PER_ROW = Math.max(2, Math.min(nodesPerRow || 8, 16));
         const GRID_SIZE = 180;
-        return nodes.map((node, index) => {
-          const row = Math.floor(index / nodesPerRow);
-          const col = index % nodesPerRow;
-          return {
-            ...node,
-            position: { x: safeNumber(col * GRID_SIZE), y: safeNumber(row * GRID_SIZE) },
-          };
+        if (layoutType === 'radial' || layoutType === 'angled') {
+            // Use layoutNodes to assign positions for radial/angled
+            return layoutNodes(sortedNodes);
+        }
+        if (orderBy === 'dependency') {
+            // Group nodes by type (dependency view)
+            const neither = sortedNodes.filter(n => !n.data.isParent && !n.data.isChild);
+            const parentOnly = sortedNodes.filter(n => n.data.isParent && !n.data.isChild);
+            const both = sortedNodes.filter(n => n.data.isParent && n.data.isChild);
+            const childOnly = sortedNodes.filter(n => !n.data.isParent && n.data.isChild);
+            const groups = [neither, parentOnly, both, childOnly];
+            // Find the widest row among all groups for centering
+            let maxRowWidth = 0;
+            groups.forEach(group => {
+                const rows = Math.ceil(group.length / NODES_PER_ROW) || 1;
+                for (let r = 0; r < rows; r++) {
+                    const nodesInRow = r === rows - 1 ? (group.length % NODES_PER_ROW || NODES_PER_ROW) : NODES_PER_ROW;
+                    const width = (nodesInRow - 1) * GRID_SIZE;
+                    if (width > maxRowWidth) maxRowWidth = width;
+                }
+            });
+            let nodes = [];
+            let y = 0;
+            groups.forEach(group => {
+                const rows = Math.ceil(group.length / NODES_PER_ROW) || 1;
+                for (let r = 0; r < rows; r++) {
+                    const startIdx = r * NODES_PER_ROW;
+                    const endIdx = Math.min(startIdx + NODES_PER_ROW, group.length);
+                    const rowNodes = group.slice(startIdx, endIdx);
+                    const rowWidth = (rowNodes.length - 1) * GRID_SIZE;
+                    const centerOffset = (maxRowWidth - rowWidth) / 2;
+                    rowNodes.forEach((node, i) => {
+                        nodes.push({
+                            ...node,
+                            position: { x: centerOffset + i * GRID_SIZE, y: y }
+                        });
+                    });
+                    y += GRID_SIZE; // Move y after each row
+                }
+                // Add vertical space between groups
+                y += 40;
+            });
+            return nodes;
+        } else {
+            // Normal grid layout
+            return sortedNodes.map((node, index) => {
+                const row = Math.floor(index / NODES_PER_ROW);
+                const col = index % NODES_PER_ROW;
+                let x = col * GRID_SIZE;
+                let y = row * GRID_SIZE;
+                return {
+                    ...node,
+                    position: { x, y },
+                };
+            });
+        }
+    }, [sortedNodes, orderBy, nodesPerRow, layoutType, layoutNodes]);
+    // Custom layout for popupLayered: selected node center, parents above, children below
+    const popupLayeredNodes = useMemo(() => {
+        if (layoutType !== 'popupLayered' || !selectedNode || !allNodes) return null;
+        const nodeMap = Object.fromEntries(allNodes.map(n => [n.id, n]));
+        const selected = nodeMap[selectedNode.id || selectedNode];
+        if (!selected) return null;
+        // Find direct parents and children
+        const parents = allEdges.filter(e => e.target === selected.id).map(e => nodeMap[e.source]).filter(Boolean);
+        const children = allEdges.filter(e => e.source === selected.id).map(e => nodeMap[e.target]).filter(Boolean);
+        // Layout: parents at y=0, selected at y=1, children at y=2
+        const spacingX = 250;
+        const spacingY = 180;
+        const nodes = [];
+        // Parents
+        parents.forEach((n, i) => {
+            nodes.push({
+                ...n,
+                position: { x: i * spacingX - ((parents.length-1)*spacingX/2), y: 0 },
+            });
         });
-      }
-    }, []);
+        // Selected node
+        nodes.push({
+            ...selected,
+            position: { x: 0, y: spacingY },
+        });
+        // Children
+        children.forEach((n, i) => {
+            nodes.push({
+                ...n,
+                position: { x: i * spacingX - ((children.length-1)*spacingX/2), y: 2*spacingY },
+            });
+        });
+        return nodes;
+    }, [layoutType, selectedNode, allNodes, allEdges]);
 
-    // Use layoutNodes to position nodes
-    const positionedNodes = useMemo(() => layoutNodes(sortedNodes, allEdges, orderBy, nodesPerRow), [sortedNodes, allEdges, orderBy, nodesPerRow]);
-
-    // Defensive: filter out edges with missing/undefined source/target
     const filteredEdges = useMemo(() => {
-      return (allEdges || []).filter(e => e.source && e.target);
-    }, [allEdges]);
+        const nodeIds = new Set(allNodes.map(n => n.id));
+        const valid = (allEdges || []).filter(e => e.source && e.target && nodeIds.has(e.source) && nodeIds.has(e.target));
+        // Fallback: if no edges but multiple nodes, generate fallback edges
+        if (valid.length === 0 && allNodes.length > 1) {
+            const fallback = allNodes.slice(1).map((node, i) => ({
+                id: `edge-fallback-${i}`,
+                source: allNodes[i].id,
+                target: node.id,
+            }));
+            return fallback;
+        }
+        return valid;
+    }, [allEdges, allNodes]);
+    // --- END PORTED TREE LOGIC ---
 
+    // Remove initializeData and related useEffect
     useEffect(() => {
-        if (!sortedNodes?.length) {
-            setIsInitialized(false);
+        if (!gridNodes?.length) {
             setNodes([]);
             setEdges([]);
             setHighlightedEdges(new Set());
@@ -209,15 +328,16 @@ const FlowChartInner = forwardRef(({
             setConnectedNodeIds(new Set());
             return;
         }
-        const success = initializeData(sortedNodes, filteredEdges);
-        if (reactFlowInstance && sortedNodes.length > 0) {
+        setNodes(gridNodes);
+        setEdges(filteredEdges);
+        if (reactFlowInstance && gridNodes.length > 0) {
             setTimeout(() => {
                 try {
                     reactFlowInstance.fitView({ padding: 0.1, includeHiddenNodes: true });
                 } catch (e) { /* ignore */ }
             }, 100);
         }
-    }, [sortedNodes, filteredEdges, initializeData, reactFlowInstance]);
+    }, [gridNodes, filteredEdges, reactFlowInstance]);
 
     useEffect(() => {
         if (!isInitialized) return;
@@ -227,11 +347,11 @@ const FlowChartInner = forwardRef(({
         }
         const lowerSearch = searchTerm.toLowerCase();
         const nodesToBlur = new Set(
-            sortedNodes.filter(node => !JSON.stringify(node.data).toLowerCase().includes(lowerSearch))
+            gridNodes.filter(node => !JSON.stringify(node.data).toLowerCase().includes(lowerSearch))
                     .map(node => node.id)
         );
         setBlurredNodes(nodesToBlur);
-    }, [searchTerm, sortedNodes, isInitialized]);
+    }, [searchTerm, gridNodes, isInitialized]);
 
     const connectedNode = useCallback((id) => {
         const connectedEdges = filteredEdges.filter(edge =>
@@ -303,7 +423,7 @@ const FlowChartInner = forwardRef(({
             const upward = findUpwardDependencies(node.id);
             const downward = findDownwardDependencies(node.id);
             const relatedNodes = new Set([...upward, ...downward, node.id]);
-            const blurred = new Set(nodes.map(n => n.id).filter(id => !relatedNodes.has(id)));
+            const blurred = new Set(gridNodes.map(n => n.id).filter(id => !relatedNodes.has(id)));
             const relatedEdges = filteredEdges.filter(edge => {
                 const isUpwardEdge = edge.target === node.id && upward.has(edge.source);
                 const isDownwardEdge = edge.source === node.id && downward.has(edge.target);
@@ -318,7 +438,7 @@ const FlowChartInner = forwardRef(({
             setHighlightedEdges(new Set(relatedEdges.map(e => e.id)));
         }
         setSelectedNode(node.id);
-    }, [doubleClickedNode, nodes, filteredEdges, findUpwardDependencies, findDownwardDependencies, setSelectedNode]);
+    }, [doubleClickedNode, gridNodes, filteredEdges, findUpwardDependencies, findDownwardDependencies, setSelectedNode]);
 
     const onInit = useCallback((instance) => {
         // No-op for now
@@ -382,41 +502,15 @@ const FlowChartInner = forwardRef(({
     // Use layoutNodes to position nodes
     // const positionedNodes = useMemo(() => layoutNodes(sortedNodes, edges, orderBy, nodesPerRow), [sortedNodes, edges, orderBy, nodesPerRow]); // This line is removed as per the edit hint
 
-    const popupLayeredNodes = useMemo(() => {
-        if (orderBy !== 'popupLayered' || !selectedNode || !allNodes) return null;
-        const nodeMap = Object.fromEntries(allNodes.map(n => [n.id, n]));
-        const selected = nodeMap[selectedNode.id || selectedNode];
-        if (!selected) return null;
-        const parents = allEdges.filter(e => e.target === selected.id).map(e => nodeMap[e.source]).filter(Boolean);
-        const children = allEdges.filter(e => e.source === selected.id).map(e => nodeMap[e.target]).filter(Boolean);
-        const spacingX = 250;
-        const spacingY = 180;
-        const nodes = [];
-        parents.forEach((n, i) => {
-            nodes.push({
-                ...n,
-                position: { x: safeNumber(i * spacingX - ((parents.length-1)*spacingX/2)), y: 0 },
-            });
-        });
-        nodes.push({
-            ...selected,
-            position: { x: 0, y: safeNumber(spacingY) },
-        });
-        children.forEach((n, i) => {
-            nodes.push({
-                ...n,
-                position: { x: safeNumber(i * spacingX - ((children.length-1)*spacingX/2)), y: safeNumber(2*spacingY) },
-            });
-        });
-        return nodes;
-    }, [orderBy, selectedNode, allNodes, allEdges]);
-
+    // Replace positionedNodes with gridNodes and popupLayeredNodes logic
     const nodesWithOffset = useMemo(() => {
         if (popupLayeredNodes) return popupLayeredNodes;
         const posMap = new Map();
-        return positionedNodes.map(n => {
-            let x = safeNumber(n.position?.x);
-            let y = safeNumber(n.position?.y);
+        return gridNodes.map(n => {
+            let x = n.position?.x;
+            let y = n.position?.y;
+            if (typeof x !== 'number' || isNaN(x)) x = 0;
+            if (typeof y !== 'number' || isNaN(y)) y = 0;
             const key = `${x},${y}`;
             if (posMap.has(key)) {
                 const count = posMap.get(key) + 1;
@@ -436,55 +530,102 @@ const FlowChartInner = forwardRef(({
                 };
             }
         });
-    }, [positionedNodes, popupLayeredNodes]);
+    }, [gridNodes, popupLayeredNodes]);
 
+    // Prepare nodes with styles
     const nodeIdHasChildren = new Set(filteredEdges.map(e => e.source));
     const nodeIdHasParents = new Set(filteredEdges.map(e => e.target));
-    const highlightSet = new Set();
-    if (hoveredNode || selectedNode) {
-        const focusId = hoveredNode || selectedNode;
-        highlightSet.add(focusId);
-        filteredEdges.forEach(edge => {
-            if (edge.source === focusId) highlightSet.add(edge.target);
-            if (edge.target === focusId) highlightSet.add(edge.source);
+    const nodesWithStyles = useMemo(() => {
+        const baseNodes = (layoutType === 'collapsible') ? gridNodes : gridNodes;
+        return baseNodes.map(node => {
+            // Ensure node.position is always a valid object
+            let position = node.position;
+            if (!position || typeof position !== 'object') {
+                position = { x: 0, y: 0 };
+            } else {
+                position = {
+                    x: (typeof position.x === 'number' && !isNaN(position.x)) ? position.x : 0,
+                    y: (typeof position.y === 'number' && !isNaN(position.y)) ? position.y : 0,
+                };
+            }
+            let style = {
+                ...node.style,
+                opacity: blurredNodes.has(node.id) ? 0.2 : 1,
+                filter: blurredNodes.has(node.id) ? 'blur(1.5px)' : 'none',
+                zIndex: connectedNodeIds.has(node.id) ? 10 : 1,
+                transition: 'all 0.3s ease-in-out',
+                borderRadius: '10px',
+                boxShadow: node.id === selectedNode ? '0 0 0 4px yellow' : 'none',
+            };
+            if (connectedNodeIds.has(node.id)) {
+                // Determine parent/child relationship to selectedNode
+                const isParent = filteredEdges.some(e => e.source === node.id && e.target === selectedNode);
+                const isChild = filteredEdges.some(e => e.source === selectedNode && e.target === node.id);
+                if (isParent && isChild) {
+                    style = {
+                        ...style,
+                        border: '4px solid #d500f9', // bright purple
+                        background: '#f3e5f5', // light purple
+                    };
+                } else if (isParent) {
+                    style = {
+                        ...style,
+                        border: '4px solid #2979ff', // bright blue
+                        background: '#e3f2fd', // light blue
+                    };
+                } else if (isChild) {
+                    style = {
+                        ...style,
+                        border: '4px solid #00e676', // bright green
+                        background: '#e8f5e9', // light green
+                    };
+                } else {
+                    style = {
+                        ...style,
+                        border: '4px solid #ff1744', // bright red
+                        background: '#ffebee', // light red
+                    };
+                }
+            }
+            if (node.id === selectedNode) {
+                style = {
+                    ...style,
+                    border: '5px solid #ffd600', // bright yellow
+                    background: '#fffde7', // light yellow
+                };
+            }
+            // Determine parent/child status for node rendering
+            const isParent = nodeIdHasChildren.has(node.id);
+            const isChild = nodeIdHasParents.has(node.id);
+            // Assign color for sorting
+            let color = 'gray';
+            if (isParent && isChild) color = 'light blue';
+            else if (isParent) color = 'blue';
+            else if (isChild) color = 'green';
+            else color = 'gray';
+            return { ...node, position, style, data: { ...node.data, isParent, isChild, color } };
         });
-    }
+    }, [layoutType, gridNodes, blurredNodes, connectedNodeIds, selectedNode, filteredEdges]);
 
-    // Node style: circular, colored, centered text
-    const nodesWithStyles = positionedNodes.map(node => {
-        // Assign color for sorting
-        let color = (node.data.color || '').toLowerCase();
-        let bgColor = '#bdbdbd'; // gray default
-        if (color === 'blue') bgColor = '#1976d2';
-        else if (color === 'green') bgColor = '#43a047';
-        // Style for circular node
-        const style = {
-            width: 56,
-            height: 56,
-            borderRadius: '50%',
-            background: bgColor,
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 600,
-            fontSize: 14,
-            boxShadow: node.selected ? '0 0 0 4px #ffd600' : '0 2px 8px rgba(0,0,0,0.08)',
-            border: node.selected ? '3px solid #ffd600' : '2px solid #fff',
-            transition: 'box-shadow 0.2s, border 0.2s',
-        };
+    // Prepare edges with styles and direction for parent/child
+    const edgesWithStyles = useMemo(() => filteredEdges.map(edge => {
+        // Deep clean: remove sourceHandle/targetHandle if undefined
+        const cleaned = { ...edge };
+        if (cleaned.sourceHandle === undefined) delete cleaned.sourceHandle;
+        if (cleaned.targetHandle === undefined) delete cleaned.targetHandle;
+        let style = { stroke: '#ff0000', strokeWidth: 4, opacity: 1 };
+        let direction = undefined;
+        if (selectedNode) {
+            if (cleaned.source === selectedNode) direction = 'child';
+            else if (cleaned.target === selectedNode) direction = 'parent';
+        }
         return {
-            ...node,
+            ...cleaned,
             style,
+            direction,
+            type: 'custom',
         };
-    });
-    // Edge style: smooth, light gray, no arrowheads
-    const edgesWithStyles = filteredEdges.map(edge => ({
-        ...edge,
-        type: 'custom',
-        style: { stroke: '#bbb', strokeWidth: 2, opacity: 0.6 },
-        markerEnd: undefined,
-    }));
+    }), [filteredEdges, selectedNode, highlightedEdges]);
 
     const handleExportPdf = useCallback((afterExportCallback) => {
         const flowElement = document.querySelector('.react-flow');
@@ -559,7 +700,11 @@ const FlowChartInner = forwardRef(({
         backgroundColor: 'transparent',
     }), []);
 
-    if (!sortedNodes?.length || nodesWithStyles.length === 0) {
+    // Debug: Log edges and nodes before rendering
+    console.log('edgesWithStyles', edgesWithStyles);
+    console.log('nodesWithStyles', nodesWithStyles);
+
+    if (!gridNodes?.length || nodesWithStyles.length === 0) {
         return <div style={{ color: '#aaa', padding: 20 }}>No nodes to display. Please load or add rules to see the flowchart.</div>;
     }
 
@@ -605,25 +750,46 @@ const FlowChartInner = forwardRef(({
     return (
         <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
             {/* Controls: Sorting, Nodes/Row, Export, Help */}
-            <Box sx={{ position: 'absolute', top: 8, left: 8, zIndex: 10, display: 'flex', gap: 2 }}>
+            <Box sx={{ position: 'absolute', top: 8, left: 8, zIndex: 10, display: 'flex', gap: 2, alignItems: 'center' }}>
+                {/* Layout Type Toggle */}
+                <ToggleButtonGroup
+                    value={layoutType}
+                    exclusive
+                    onChange={(_, v) => v && setLayoutType(v)}
+                    size="small"
+                    sx={{ mr: 1 }}
+                >
+                    <ToggleButton value="dependency">Dependency</ToggleButton>
+                    <ToggleButton value="grid">Grid</ToggleButton>
+                    <ToggleButton value="radial">Radial</ToggleButton>
+                    <ToggleButton value="angled">Angled</ToggleButton>
+                    <ToggleButton value="popupLayered">Popup</ToggleButton>
+                </ToggleButtonGroup>
+                {/* Order By Toggle */}
                 <ToggleButtonGroup
                     value={orderBy}
                     exclusive
-                    onChange={(_, val) => val && setOrderBy(val)}
+                    onChange={(_, v) => v && setOrderBy(v)}
                     size="small"
+                    sx={{ mr: 1 }}
                 >
-                    <ToggleButton value="number">Sort by Number</ToggleButton>
-                    <ToggleButton value="dependency">Sort by Parent/Child</ToggleButton>
+                    <ToggleButton value="dependency">Dependency</ToggleButton>
+                    <ToggleButton value="name">Name</ToggleButton>
+                    <ToggleButton value="type">Type</ToggleButton>
+                    <ToggleButton value="number">Number</ToggleButton>
+                    <ToggleButton value="color">Color</ToggleButton>
                 </ToggleButtonGroup>
+                {/* Nodes Per Row Toggle */}
                 <ToggleButtonGroup
                     value={nodesPerRow}
-                    exclusive
-                    onChange={(_, val) => val && setNodesPerRow(val)}
+                    exclusive={false}
+                    onChange={(_, v) => v && setNodesPerRow(v)}
                     size="small"
-                    sx={{ ml: 2 }}
+                    sx={{ mr: 1 }}
                 >
-                    <ToggleButton value={8}>8/row</ToggleButton>
-                    <ToggleButton value={16}>16/row</ToggleButton>
+                    {[4, 6, 8, 10, 12, 16].map(n => (
+                        <ToggleButton key={n} value={n}>{n} / row</ToggleButton>
+                    ))}
                 </ToggleButtonGroup>
                 <Tooltip title="Export as PDF">
                     <IconButton onClick={handleExport} size="small">

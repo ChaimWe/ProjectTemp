@@ -116,11 +116,19 @@ export default function AIChatPanel({ rule, allRules, edges = [], isAIPage = fal
     setMessages(msgs => [...msgs, userMsg]);
     setLoading(true);
     setInput('');
-    // TODO: Integrate with OpenAI or backend AI API
-    setTimeout(() => {
-      setMessages(msgs => [...msgs, { sender: 'ai', text: 'AI response placeholder.' }]);
-      setLoading(false);
-    }, 1200);
+    try {
+      // Call your backend AI API endpoint
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input })
+      });
+      const data = await response.json();
+      setMessages(msgs => [...msgs, { sender: 'ai', text: data.reply || 'No response from AI.' }]);
+    } catch (err) {
+      setMessages(msgs => [...msgs, { sender: 'ai', text: 'Sorry, there was an error contacting the AI.' }]);
+    }
+    setLoading(false);
   };
 
   const handleStyleChange = (e) => {

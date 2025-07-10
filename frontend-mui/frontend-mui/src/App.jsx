@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Outlet } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -35,31 +35,40 @@ const navItems = [
   { text: 'ALB + ACL', path: '/alb-acl/1/1' }, // Example static ids
 ];
 
+function AppLayout() {
+  const [rules, setRules] = React.useState([]);
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <CssBaseline />
+      <Topbar title="WAF Visualization Tool" />
+      <Sidebar open={true} setOpen={() => {}} />
+      <Box
+        component="main"
+        sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - 240px)` }, mt: '64px' }}
+      >
+        <Toolbar />
+        <Outlet context={{ data: rules, setData: setRules }} />
+      </Box>
+    </Box>
+  );
+}
+
 export default function App(props) {
   const [mobileOpen, setMobileOpen] = React.useState(true); // Sidebar open by default
 
   return (
     <ThemeProvider>
       <Router>
-        <Box sx={{ display: 'flex' }}>
-          <CssBaseline />
-          <Topbar title="WAF Visualization Tool" />
-          <Sidebar open={mobileOpen} setOpen={setMobileOpen} />
-          <Box
-            component="main"
-            sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` }, mt: '64px' }}
-          >
-            <Toolbar />
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/explorer" element={<ExplorerPage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/ai" element={<AIPage />} />
-              <Route path="/alb/:albId" element={<AlbPage />} />
-              <Route path="/alb-acl/:albId/:aclId" element={<AlbAclPage />} />
-            </Routes>
-          </Box>
-        </Box>
+        <Routes>
+          <Route path="/" element={<AppLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="explorer" element={<ExplorerPage />} />
+            <Route path="about" element={<AboutPage />} />
+            <Route path="ai" element={<AIPage />} />
+            <Route path="alb/:albId" element={<AlbPage />} />
+            <Route path="alb-acl/:albId/:aclId" element={<AlbAclPage />} />
+          </Route>
+        </Routes>
       </Router>
     </ThemeProvider>
   );
