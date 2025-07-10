@@ -350,7 +350,10 @@ const WAFView = ({
                 const node = graphData.nodes.find(n => n.id === nodeId);
                 setPopupRule(node ? node.data : null);
             }
-            setRulePopupOpen(true);
+            // Do NOT open the rule popup in tree view; only update side panel
+            if (viewType !== 'tree') {
+                setRulePopupOpen(true);
+            }
             if (setWarningsPopupOpen) setWarningsPopupOpen(false);
         }
     }, [setWarningsPopupOpen, viewType, graphData]);
@@ -559,7 +562,7 @@ const WAFView = ({
                 />
                 {/* Flow Chart */}
                 <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', width: '100%', height: '100%' }}>
-                    <Box sx={{ width: 'calc(100% - 144px)', maxWidth: '1400px', margin: '72px 120px 0px 24px', height: 'calc(100vh - 120px)', position: 'relative', background: 'none', backgroundColor: darkTheme ? 'rgba(34, 34, 34, 0.3)' : 'rgba(255, 255, 255, 0.3)', overflow: 'hidden', borderRadius: 0 }}>
+                    <Box sx={{ width: 'calc(100% - 420px)', maxWidth: '1100px', margin: '72px 0px 0px 24px', height: 'calc(100vh - 120px)', position: 'relative', background: 'none', backgroundColor: darkTheme ? 'rgba(34, 34, 34, 0.3)' : 'rgba(255, 255, 255, 0.3)', overflow: 'hidden', borderRadius: 0 }}>
                         <ReactFlowProvider>
                             {viewType === 'tree' && sortedNodes.length > 0 && (
                                 <FlowChart
@@ -636,9 +639,25 @@ const WAFView = ({
                             )}
                         </ReactFlowProvider>
                     </Box>
+                    {/* Persistent right-side details panel for tree view */}
+                    {viewType === 'tree' && (
+                        <Box sx={{ width: 400, minWidth: 320, maxWidth: 480, height: 'calc(100vh - 120px)', mt: '72px', mr: 2, background: darkTheme ? '#23272f' : '#fff', borderRadius: 3, boxShadow: 3, overflowY: 'auto', p: 2 }}>
+                            {selectedNode ? (
+                                <InspectorView
+                                    rules={[graphData?.nodes?.find(n => n.id === selectedNode)?.data]}
+                                    dependencyNodes={[]}
+                                    dependencyEdges={[]}
+                                />
+                            ) : (
+                                <Typography variant="body2" sx={{ color: '#888', mt: 4, textAlign: 'center' }}>
+                                    Select a node to see rule details.
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
                 </Box>
             </Box>
-            {rulePopupOpen && popupRule && (
+            {rulePopupOpen && popupRule && viewType !== 'tree' && (
                 <RulePopup
                     dataArray={viewType === 'tree' ? graphData?.nodes || [] : dependencyNodes}
                     allRules={originalRules}

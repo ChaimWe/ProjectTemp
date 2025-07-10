@@ -170,110 +170,112 @@ const Topbar = ({
             >
                 {/* Title and dropdowns */}
                 <Typography variant="h6" sx={{ fontSize: '1.1rem', color: 'inherit', minWidth: 120, mr: 2 }}>
-                    {aclDetails?.aclName || 'WAF Rules'}
-                </Typography>
-                <Select
-                    size="small"
-                    value={viewType}
-                    onChange={e => setViewType(e.target.value)}
-                    sx={{
-                        minWidth: 150,
-                        background: darkTheme ? '#222' : '#fff',
-                        color: darkTheme ? '#fff' : '#333',
-                        border: darkTheme ? '1px solid #444' : '1px solid #ccc',
-                        '.MuiOutlinedInput-notchedOutline': {
-                            borderColor: darkTheme ? '#444' : '#ccc',
-                        },
-                        '& .MuiSvgIcon-root': {
-                            color: darkTheme ? '#fff' : '#333',
-                        },
+                            {aclDetails?.aclName || 'WAF Rules'}
+                    </Typography>
+                        <Select
+                        size="small"
+                            value={viewType}
+                            onChange={e => setViewType(e.target.value)}
+                        sx={{
+                                minWidth: 150,
+                                background: darkTheme ? '#222' : '#fff',
+                                color: darkTheme ? '#fff' : '#333',
+                                border: darkTheme ? '1px solid #444' : '1px solid #ccc',
+                                '.MuiOutlinedInput-notchedOutline': {
+                                    borderColor: darkTheme ? '#444' : '#ccc',
+                                },
+                                '& .MuiSvgIcon-root': {
+                                    color: darkTheme ? '#fff' : '#333',
+                                },
                         mr: 1
-                    }}
-                >
-                    <MenuItem value="tree">Tree (Dependency)</MenuItem>
-                    <MenuItem value="radial">Radial</MenuItem>
-                    <MenuItem value="angled">Angled</MenuItem>
-                    <MenuItem value="inspector">Inspector</MenuItem>
-                </Select>
-                <Select
-                    size="small"
+                            }}
+                            aria-label="View Type"
+                        >
+                            <MenuItem value="tree">Tree (Dependency)</MenuItem>
+                            <MenuItem value="inspector">Inspector</MenuItem>
+                        </Select>
+                        <Select
+                            size="small"
                     value={validOrderBy}
-                    onChange={e => setOrderBy(e.target.value)}
+                            onChange={e => setOrderBy(e.target.value)}
                     sx={{ minWidth: 120, mr: 1 }}
-                    disabled={viewType !== 'tree'}
-                >
-                    <MenuItem value="dependency">Parent/Child</MenuItem>
-                    <MenuItem value="number">Number</MenuItem>
-                </Select>
-                <Select
-                    size="small"
+                            disabled={viewType !== 'tree'}
+                        >
+                            <MenuItem value="dependency">Parent/Child</MenuItem>
+                            <MenuItem value="number">Number</MenuItem>
+                        </Select>
+                        <Select
+                            size="small"
                     value={validNodesPerRow}
-                    onChange={e => setNodesPerRow(Number(e.target.value))}
+                            onChange={e => setNodesPerRow(Number(e.target.value))}
                     sx={{ minWidth: 120, mr: 2 }}
-                >
-                    {Array.from({length: 15}, (_, i) => i + 2).map(val => (
-                        <MenuItem key={val} value={val}>{val}</MenuItem>
-                    ))}
-                </Select>
+                        >
+                            {Array.from({length: 15}, (_, i) => i + 2).map(val => (
+                                <MenuItem key={val} value={val}>{val}</MenuItem>
+                            ))}
+                        </Select>
                 {/* Search and view controls */}
                 <Box ref={searchRef} sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
-                    {searchOpen ? (
-                        <TextField
-                            size="small"
-                            autoFocus
-                            placeholder="Search..."
-                            value={searchTerm}
-                            onChange={handleSearchChange}
-                            onBlur={() => setSearchOpen(false)}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter') setSearchOpen(false);
-                            }}
-                            sx={{ width: 200, transition: 'width 0.3s' }}
-                        />
-                    ) : (
-                        <Tooltip title="Search">
-                            <IconButton onClick={() => setSearchOpen(true)}>
-                                <SearchIcon />
+                            {searchOpen ? (
+                                <TextField
+                                    size="small"
+                                    autoFocus
+                                    placeholder="Search..."
+                                    value={searchTerm}
+                                    onChange={handleSearchChange}
+                                    onBlur={() => setSearchOpen(false)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') setSearchOpen(false);
+                                    }}
+                                    sx={{ width: 200, transition: 'width 0.3s' }}
+                                />
+                            ) : (
+                                <Tooltip title="Search">
+                                    <IconButton onClick={() => setSearchOpen(true)}>
+                                        <SearchIcon />
+                                    </IconButton>
+                                </Tooltip>
+                            )}
+                        </Box>
+                    <Tooltip title={showArrows ? "Hide Arrows" : "Show Arrows"}>
+                            <IconButton onClick={() => setShowArrows(!showArrows)}>
+                            {showArrows ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title={dottedLines ? "Use Solid Lines" : "Use Dotted Lines"}>
+                            <IconButton onClick={() => setDottedLines(!dottedLines)}>
+                            {dottedLines ? <LinearScaleIcon /> : <RemoveIcon />}
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title={animatedLines ? "Disable Animation" : "Enable Animation"}>
+                            <IconButton onClick={() => setAnimatedLines(!animatedLines)}>
+                            <WavesIcon color={animatedLines ? "primary" : "inherit"} />
+                        </IconButton>
+                    </Tooltip>
+                {/* Action buttons */}
+                <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 40, ml: 2 }} aria-label="Upload ACL/WAF JSON">
+                        Upload ACL/WAF JSON
+                    </Button>
+                <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 40, ml: 2 }} aria-label="Upload ALB JSON">
+                        Upload ALB JSON
+                    </Button>
+                <IconButton onClick={handleExportPdf} sx={{ ml: 1 }}>
+                        <PictureAsPdfIcon />
+                    </IconButton>
+                <IconButton onClick={handleExportImage} sx={{ ml: 1 }}>
+                        <ImageIcon />
+                    </IconButton>
+                <IconButton onClick={handleWarningsClick} sx={{ ml: 1 }}>
+                        <Badge badgeContent={warningCount || 0} color="warning">
+                            <ReportIcon />
+                        </Badge>
+                    </IconButton>
+                        {/* Dark mode toggle */}
+                        <Tooltip title={darkTheme ? 'Light Mode' : 'Dark Mode'}>
+                    <IconButton onClick={() => setDarkTheme(!darkTheme)} sx={{ ml: 1 }}>
+                                {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
                             </IconButton>
                         </Tooltip>
-                    )}
-                </Box>
-                <Tooltip title={showArrows ? "Hide Arrows" : "Show Arrows"}>
-                    <IconButton onClick={() => setShowArrows(!showArrows)}>
-                        {showArrows ? <VisibilityIcon /> : <VisibilityOffIcon />}
-                    </IconButton>
-                </Tooltip>
-                <Tooltip title={dottedLines ? "Use Solid Lines" : "Use Dotted Lines"}>
-                    <IconButton onClick={() => setDottedLines(!dottedLines)}>
-                        {dottedLines ? <LinearScaleIcon /> : <RemoveIcon />}
-                    </IconButton>
-                </Tooltip>
-                <Tooltip title={animatedLines ? "Disable Animation" : "Enable Animation"}>
-                    <IconButton onClick={() => setAnimatedLines(!animatedLines)}>
-                        <WavesIcon color={animatedLines ? "primary" : "inherit"} />
-                    </IconButton>
-                </Tooltip>
-                {/* Action buttons */}
-                <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={handleFileButtonClick} sx={{ height: 40, ml: 2 }}>
-                    Load Rules
-                </Button>
-                <IconButton onClick={handleExportPdf} sx={{ ml: 1 }}>
-                    <PictureAsPdfIcon />
-                </IconButton>
-                <IconButton onClick={handleExportImage} sx={{ ml: 1 }}>
-                    <ImageIcon />
-                </IconButton>
-                <IconButton onClick={handleWarningsClick} sx={{ ml: 1 }}>
-                    <Badge badgeContent={warningCount || 0} color="warning">
-                        <ReportIcon />
-                    </Badge>
-                </IconButton>
-                {/* Dark mode toggle */}
-                <Tooltip title={darkTheme ? 'Light Mode' : 'Dark Mode'}>
-                    <IconButton onClick={() => setDarkTheme(!darkTheme)} sx={{ ml: 1 }}>
-                        {darkTheme ? <LightModeIcon /> : <DarkModeIcon />}
-                    </IconButton>
-                </Tooltip>
             </Box>
         </AppBar>
     );

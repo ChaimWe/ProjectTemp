@@ -3,6 +3,8 @@ import FlowChart from './FlowChart';
 import InspectorView from '../WAFView/InspectorView';
 import CytoscapeComponent from 'react-cytoscapejs';
 import RequestDebugger from '../../debugger/RequestDebugger';
+import { useThemeContext } from '../../context/ThemeContext';
+import { Paper, Alert } from '@mui/material';
 
 const BORDER_COLORS = {
   WAF: '2px solid red',
@@ -95,6 +97,7 @@ const VIEW_OPTIONS = [
 ];
 
 const WafAlbVisualizer = () => {
+  const { getColor } = useThemeContext();
   const [wafData, setWafData] = useState(null);
   const [albData, setAlbData] = useState(null);
   const [error, setError] = useState(null);
@@ -170,62 +173,36 @@ const WafAlbVisualizer = () => {
   return (
     <div style={{ padding: 24, position: 'relative', minHeight: 600 }}>
       <h2>WAF & ALB Rules Visualizer</h2>
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ marginRight: 8 }}>
-          Upload waf_rules.json:
-          <input
-            type="file"
-            accept=".json,application/json"
-            onChange={e => handleFileUpload(e, setWafData)}
-            style={{ marginLeft: 8 }}
-          />
-        </label>
-        <label style={{ marginLeft: 32 }}>
-          Upload alb_rules.json:
-          <input
-            type="file"
-            accept=".json,application/json"
-            onChange={e => handleFileUpload(e, setAlbData)}
-            style={{ marginLeft: 8 }}
-          />
-        </label>
-        <select value={view} onChange={e => setView(e.target.value)} style={{ marginLeft: 32, padding: '4px 12px', fontSize: 16 }}>
-          {VIEW_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-      </div>
-      {error && <div style={{ color: 'red', marginBottom: 16 }}>{error}</div>}
-      <div style={{ marginBottom: 24 }}>
-        <strong>Status:</strong>
-        <ul>
-          <li>WAF Rules: {wafData ? 'Loaded' : 'Not loaded'}</li>
-          <li>ALB Rules: {albData ? 'Loaded' : 'Not loaded'}</li>
-        </ul>
-      </div>
-      {wafData && albData && (
+      {/* Removed upload buttons for waf_rules.json and alb_rules.json */}
+      <select value={view} onChange={e => setView(e.target.value)} style={{ marginLeft: 32, padding: '4px 12px', fontSize: 16 }}>
+        {/* Only show inspector and tree views */}
+        <option value="dual">Dual Cluster</option>
+        <option value="waf-tree">WAF Tree</option>
+        <option value="alb-tree">ALB Tree</option>
+        <option value="waf-inspector">WAF Inspector</option>
+        <option value="alb-inspector">ALB Inspector</option>
+      </select>
+      {error && <Alert severity="error" sx={{ mb: 2 }} aria-label="Visualization Error">{error}</Alert>}
+      {(wafData && albData) && (
         <button style={{ marginBottom: 16 }} onClick={() => setShowDebugger(v => !v)}>
           {showDebugger ? 'Hide' : 'Open'} Request Debugger
         </button>
       )}
-      {wafData && albData ? (
+      {(wafData && albData) ? (
         <>
           {view === 'dual' && (
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', position: 'relative', minHeight: 500 }}>
-              {/* WAF Cluster */}
-              <div style={{ background: CLUSTER_BG.WAF, padding: 24, borderRadius: 12, minWidth: 260, marginRight: 48, flex: 1 }}>
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>WAF Rules</div>
-                {wafNodes.map((node, idx) => (
-                  <NodeBox
-                    key={node.id}
-                    node={node}
-                    style={{
-                      background: getNodeColor(node, null, edges),
-                      opacity: hoverNode && hoverNode.id !== node.id ? 0.7 : 1,
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={() => setHoverNode(node)}
-                    onMouseLeave={() => setHoverNode(null)}
-                  />
-                ))}
+              {/* WAF Cluster - removed rule list */}
+              <div style={{ background: getColor('background'), padding: 24, borderRadius: 12, minWidth: 260, marginRight: 48, flex: 1 }}>
+                {/* <div style={{ fontWeight: 700, marginBottom: 8 }}>WAF Rules</div>
+                {wafNodes.map((node) => (
+                  <Paper key={node.id} elevation={2} sx={{ background: getColor('barBackground'), border: `2px solid ${node.type === 'WAF' ? 'red' : 'green'}`, borderRadius: 2, p: 2, mb: 2 }}>
+                    <div style={{ fontWeight: 600 }}>{node.name}</div>
+                    <div style={{ fontSize: 13, color: '#888' }}>{node.type} Rule</div>
+                    <div style={{ fontSize: 12, marginTop: 4 }}><strong>Labels:</strong> {node.labels.join(', ')}</div>
+                    <div style={{ fontSize: 12, marginTop: 2 }}><strong>Priority:</strong> {node.priority}</div>
+                  </Paper>
+                ))} */}
               </div>
               {/* SVG Edges */}
               <svg style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', width: '100%', height: '100%', zIndex: 1 }}>
@@ -250,22 +227,9 @@ const WafAlbVisualizer = () => {
                   </marker>
                 </defs>
               </svg>
-              {/* ALB Cluster */}
-              <div style={{ background: CLUSTER_BG.ALB, padding: 24, borderRadius: 12, minWidth: 260, marginLeft: 48, flex: 1 }}>
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>ALB Rules</div>
-                {albNodes.map((node, idx) => (
-                  <NodeBox
-                    key={node.id}
-                    node={node}
-                    style={{
-                      background: getNodeColor(node, null, edges),
-                      opacity: hoverNode && hoverNode.id !== node.id ? 0.7 : 1,
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={() => setHoverNode(node)}
-                    onMouseLeave={() => setHoverNode(null)}
-                  />
-                ))}
+              {/* ALB Cluster - removed rule list */}
+              <div style={{ background: getColor('background'), padding: 24, borderRadius: 12, minWidth: 260, marginLeft: 48, flex: 1 }}>
+               
               </div>
               {/* Hover details */}
               {hoverNode && (
@@ -434,9 +398,9 @@ const WafAlbVisualizer = () => {
           )}
         </>
       ) : (
-        <div style={{ color: '#888' }}>
+        <Alert severity="info" sx={{ mb: 2 }} aria-label="Visualization Info">
           Please upload both waf_rules.json and alb_rules.json to view the visualization.
-        </div>
+        </Alert>
       )}
       {/* Always render debugger below, if toggled and files loaded */}
       {showDebugger && wafData && albData && (

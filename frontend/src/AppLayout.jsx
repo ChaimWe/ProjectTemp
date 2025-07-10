@@ -30,7 +30,7 @@ export default function AppLayout() {
   const { darkTheme } = useThemeContext();
   const [viewType, setViewType] = useState('tree'); // tree, table, card, etc.
   const [treeSetup, setTreeSetup] = useState('collapsible'); // collapsible, horizontal, indented, etc.
-  const [orderBy, setOrderBy] = useState('name'); // name, date, type, etc.
+  const [orderBy, setOrderBy] = useState('number'); // default to 'number' to match allowed Select values
   const [treeStyle, setTreeStyle] = useState('dependency'); // dependency, radial, angled
   const [aiChatOpen, setAiChatOpen] = useState(false);
   // Example: If using a tab system
@@ -156,53 +156,6 @@ export default function AppLayout() {
           }} />
         </Box>
       </Box>
-      {/* Floating AI Chat Button */}
-      <button
-        onClick={() => setAiChatOpen(true)}
-        style={{
-          position: 'fixed',
-          bottom: 32,
-          right: 32,
-          zIndex: 3000,
-          width: 64,
-          height: 64,
-          borderRadius: '50%',
-          background: '#1976d2',
-          color: '#fff',
-          border: 'none',
-          boxShadow: '0 4px 16px rgba(25, 118, 210, 0.25)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 32,
-          transition: 'background 0.2s',
-        }}
-        title="Open AI Assistant"
-      >
-        <ChatBubbleOutlineIcon style={{ fontSize: 36 }} />
-      </button>
-      {/* AI Chat Modal */}
-      <Modal open={aiChatOpen} onClose={() => setAiChatOpen(false)} style={{ zIndex: 3500 }}>
-        <Box sx={{
-          position: 'fixed',
-          bottom: 100,
-          right: 40,
-          width: 420,
-          maxWidth: '95vw',
-          height: 540,
-          maxHeight: '90vh',
-          background: darkTheme ? '#23272f' : '#fff',
-          borderRadius: 4,
-          boxShadow: 24,
-          p: 0,
-          zIndex: 3501,
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          <AIChatPanel isAIPage={false} />
-        </Box>
-      </Modal>
       <RulesLoaderPopup
         open={loaderPopupOpen}
         onClose={() => setLoaderPopupOpen(false)}

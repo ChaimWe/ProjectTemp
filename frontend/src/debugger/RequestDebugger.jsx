@@ -40,6 +40,17 @@ import CustomSnackbar from '../components/popup/CustomSnackbar';
 import bgImage from '../assets/pexels-scottwebb-1029624.jpg';
 import { useThemeContext } from '../context/ThemeContext';
 import UploadJsonButton from '../components/upload/UploadJsonButton';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import InputAdornment from '@mui/material/InputAdornment';
+import BlockIcon from '@mui/icons-material/Block';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RemoveRedEyeIcon from '@mui/icons-material/RemoveRedEye';
+import RedoIcon from '@mui/icons-material/Redo';
+import Tooltip from '@mui/material/Tooltip';
+import Link from '@mui/material/Link';
 
 /**
  * RequestDebugger component for testing AWS WAF rules.
@@ -89,6 +100,8 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
 
     const { darkTheme, getColor } = useThemeContext();
 
+    const [mode, setMode] = useState('both'); // 'waf', 'alb', 'both'
+
     // Combine passed rules with loaded rules
     const allRules = [...safeRules, ...loadedRules];
     const effectiveRules = allRules.filter(r => r && Object.keys(r).length > 0);
@@ -97,8 +110,18 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
     const [albLoadedRules, setAlbLoadedRules] = useState([]);
     const effectiveAlbRules = [...albRules, ...albLoadedRules].filter(r => r && Object.keys(r).length > 0);
 
+    // For step-by-step mode, combine rules if mode is 'both'
+    const combinedRules = mode === 'both'
+        ? [
+            ...effectiveRules.map(r => ({ ...r, _ruleset: 'WAF' })),
+            ...effectiveAlbRules.map(r => ({ ...r, _ruleset: 'ALB' }))
+        ]
+        : mode === 'waf'
+            ? effectiveRules.map(r => ({ ...r, _ruleset: 'WAF' }))
+            : effectiveAlbRules.map(r => ({ ...r, _ruleset: 'ALB' }));
+
     // Fallback UI if no rules are loaded
-    if (!effectiveRules.length) {
+    if (!effectiveRules.length && !effectiveAlbRules.length) {
         return (
             <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
                 {/* Background */}
@@ -274,13 +297,13 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
         });
     };
 
-    // Simulate sending the request and evaluating against WAF rules
+    // Simulate sending the request and evaluating against WAF/ALB rules
     const testRequest = async () => {
         setLoading(true);
 
         try {
             // Convert our request config to a format that matches the AWS WAF evaluation format
-            const testRequest = {
+            const testRequestObj = {
                 uri: requestConfig.path,
                 method: requestConfig.method,
                 headers: requestConfig.headers.reduce((obj, header) => {
@@ -291,7 +314,7 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
                 }, {}),
                 queryString: requestConfig.queryParams || '',
                 body: requestConfig.body || '',
-                requestNumber: requestConfig.requestNumber || 1  // Add this line
+                requestNumber: requestConfig.requestNumber || 1
             };
 
             if (stepMode) {
@@ -300,19 +323,19 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
 
                 // Initialize the request state to track modifications
                 const initialRequestState = {
-                    ...testRequest,
+                    ...testRequestObj,
                     addedLabels: [],
                     addedHeaders: [],
                     actions: []
                 };
                 setCurrentRequestState(initialRequestState);
 
-                // Start with the first rule
-                const firstRule = effectiveRules[0];
+                // Start with the first rule in combinedRules
+                const firstRule = combinedRules[0];
                 if (firstRule) {
                     try {
                         const initialLabels = new Set();
-                        const result = simulateRuleEvaluation(testRequest, firstRule, initialLabels);
+                        const result = simulateRuleEvaluation(testRequestObj, firstRule, initialLabels);
                         setRuleHistory([{
                             rule: firstRule,
                             result: result,
@@ -348,17 +371,23 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
                 showMessage('Step-by-step mode started. Rules will be evaluated one by one.');
             } else {
                 // Full mode - evaluate all rules at once
-                const { matchedRules, labelsGenerated } = evaluateRulesAgainstRequest(testRequest, effectiveRules);
-
+                let wafResults = { matchedRules: [], labelsGenerated: [] };
+                let albResults = { matchedRules: [], labelsGenerated: [] };
+                if (mode === 'waf' || mode === 'both') {
+                    wafResults = evaluateRulesAgainstRequest(testRequestObj, effectiveRules);
+                }
+                if (mode === 'alb' || mode === 'both') {
+                    albResults = evaluateRulesAgainstRequest(testRequestObj, effectiveAlbRules);
+                }
                 setTestResults({
-                    request: testRequest,
-                    matchedRules: matchedRules,
-                    labelsGenerated: Array.from(labelsGenerated),
-                    timestamp: new Date().toISOString()
+                    request: testRequestObj,
+                    waf: wafResults,
+                    alb: albResults,
+                    timestamp: new Date().toISOString(),
                 });
-
-                showMessage(`Request evaluated. Found ${matchedRules.length} rule matches.`,
-                    matchedRules.length > 0 ? 'warning' : 'success');
+                const totalMatches = (wafResults.matchedRules?.length || 0) + (albResults.matchedRules?.length || 0);
+                showMessage(`Request evaluated. Found ${totalMatches} rule matches.`,
+                    totalMatches > 0 ? 'warning' : 'success');
             }
         } catch (error) {
             console.error('Error testing request:', error);
@@ -374,39 +403,30 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
             console.warn('[RequestDebugger] No rules to evaluate');
             return { matchedRules: [], labelsGenerated: [] };
         }
-
         const matchedRules = [];
         const labelsGenerated = new Set();
-
-        // Go through each rule and check if it matches
         rulesArray.forEach(rule => {
-            // Pass the current set of labels to each rule evaluation
+            // ALB rule detection: has Conditions
+            if (rule.Conditions) {
+                if (matchAlbRule(request, rule)) {
+                    matchedRules.push({ rule, result: { matched: true, details: { type: 'ALBMatch' }, actions: rule.Actions, labelsGenerated: (rule.RuleLabels||[]).map(l=>l.Name) } });
+                    if (rule.RuleLabels) rule.RuleLabels.forEach(l => labelsGenerated.add(l.Name));
+                }
+                return;
+            }
+            // WAF rule (default)
             const matchResult = simulateRuleEvaluation(request, rule, labelsGenerated);
-
-            // For rate limit rules, we want to show them in both modes
             if (matchResult.matched) {
-                // For rate limit rules, we want to show them even if they haven't exceeded the limit
                 if (matchResult.details?.type === 'RateBased') {
-                    matchedRules.push({
-                        rule: rule,
-                        result: matchResult
-                    });
+                    matchedRules.push({ rule: rule, result: matchResult });
+                } else if (matchResult.details?.type !== 'RateBased') {
+                    matchedRules.push({ rule: rule, result: matchResult });
                 }
-                // For other rules, add them as before
-                else if (matchResult.details?.type !== 'RateBased') {
-                    matchedRules.push({
-                        rule: rule,
-                        result: matchResult
-                    });
-                }
-
-                // Add any new labels to our set
                 if (matchResult.labelsGenerated) {
                     matchResult.labelsGenerated.forEach(label => labelsGenerated.add(label));
                 }
             }
         });
-
         return { matchedRules, labelsGenerated };
     };
 
@@ -416,16 +436,22 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
             console.warn('[RequestDebugger] No rule provided for evaluation');
             return { matched: false, labelsGenerated: [], ruleName: 'Unknown' };
         }
-
         let matched = false;
         let matchDetails = {};
         let actions = [];
         // Initialize labelsGenerated as a Set to collect labels
         const labelsGenerated = new Set();
-
         try {
-            // First, determine if this is a regular rule or a managed rule group
-            if (rule.OverrideAction && !rule.Action) {
+            // Managed Rule Group stub/warning
+            if (rule.Statement && rule.Statement.ManagedRuleGroupStatement) {
+                matched = true; // Assume it could match for simulation
+                matchDetails = {
+                    type: 'ManagedRuleGroup',
+                    vendorName: rule.Statement.ManagedRuleGroupStatement.VendorName,
+                    name: rule.Statement.ManagedRuleGroupStatement.Name,
+                    note: 'This is a managed rule group. Actual AWS logic is not simulated. Result is a stub.'
+                };
+            } else if (rule.OverrideAction && !rule.Action) {
                 // This is a managed rule reference with an override action
                 // We don't automatically assume managed rules match
                 matched = false;
@@ -1383,16 +1409,14 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
 
     // Step to the next rule
     const stepToNextRule = () => {
-        if (!effectiveRules || currentRuleIndex >= effectiveRules.length - 1) {
+        if (!combinedRules || currentRuleIndex >= combinedRules.length - 1) {
             showMessage('You have reached the end of the rule set', 'info');
             return;
         }
-
         const nextIndex = currentRuleIndex + 1;
-        const nextRule = effectiveRules[nextIndex];
-
+        const nextRule = combinedRules[nextIndex];
         // Convert request config to the format needed for evaluation
-        const testRequest = {
+        const testRequestObj = {
             uri: requestConfig.path,
             method: requestConfig.method,
             headers: requestConfig.headers.reduce((obj, header) => {
@@ -1405,115 +1429,30 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
             body: requestConfig.body || '',
             requestNumber: requestConfig.requestNumber || 1
         };
-
-        // Evaluate the next rule, using the current set of triggered labels
-        const result = simulateRuleEvaluation(testRequest, nextRule, triggeredLabels);
-
-        // Add to history
+        const initialLabels = new Set();
+        const result = simulateRuleEvaluation(testRequestObj, nextRule, initialLabels);
         setRuleHistory([...ruleHistory, {
             rule: nextRule,
-            result,
+            result: result,
             index: nextIndex
         }]);
-
-        // Update the request state with any new modifications
-        if (result.matched) {
+        // Update the request state with any changes from the rule match
+        if (result && result.matched) {
             const updatedRequest = updateRequestState(currentRequestState, result, nextRule);
             setCurrentRequestState(updatedRequest);
-
-            // Only add labels if:
-            // 1. The rule has labels AND
-            // 2. Either it's not a rate limit rule OR it's a rate limit rule that exceeded the limit
-            if (nextRule.RuleLabels &&
-                (!result.details?.type ||
-                    result.details.type !== 'RateBased' ||
-                    (result.details.type === 'RateBased' && result.details.rateExceeded))) {
-                const newLabels = new Set(triggeredLabels);
-                nextRule.RuleLabels.forEach(label => {
-                    if (label && label.Name) {
-                        newLabels.add(label.Name);
-                    }
-                });
-                setTriggeredLabels(newLabels);
-            }
-
-            // Show appropriate message based on rate limit status
-            if (result.details?.type === 'RateBased') {
-                if (result.details.rateExceeded) {
-                    showMessage(`Rate limit exceeded for rule "${nextRule.Name}"!`, 'warning');
-                } else {
-                    showMessage(`Rule "${nextRule.Name}" matched (request counted but limit not exceeded)`, 'info');
-                }
-            } else {
-                showMessage(`Rule "${nextRule.Name}" matched the request!`, 'warning');
-            }
-        } else {
-            showMessage(`Rule "${nextRule.Name}" did not match the request.`, 'info');
         }
-
         setCurrentRuleIndex(nextIndex);
     };
 
     // Step to the previous rule
     const stepToPreviousRule = () => {
-        if (currentRuleIndex <= 0 || ruleHistory.length <= 1) {
-            showMessage('You are at the beginning of the rule evaluation', 'info');
+        if (!combinedRules || currentRuleIndex === 0) {
+            showMessage('You are at the first rule', 'info');
             return;
         }
-
-        // Remove the last rule from history
-        const newHistory = [...ruleHistory];
-        newHistory.pop();
-
-        // Get the last rule in the new history
-        const previousEntry = newHistory[newHistory.length - 1];
-
-        // Reset to the previous state
-        setRuleHistory(newHistory);
-        setCurrentRuleIndex(previousEntry.index);
-
-        // Reset the labels and request state to what they were before
-        // We need to recalculate from the beginning
-        const newLabels = new Set();
-        let newRequestState = {
-            uri: requestConfig.path,
-            method: requestConfig.method,
-            headers: requestConfig.headers.reduce((obj, header) => {
-                if (header.name && header.value) {
-                    obj[header.name.toLowerCase()] = [{ value: header.value }];
-                }
-                return obj;
-            }, {}),
-            queryString: requestConfig.queryParams || '',
-            body: requestConfig.body || '',
-            addedLabels: [],
-            addedHeaders: [],
-            actions: []
-        };
-
-        // Replay all rules up to the previous one to rebuild the state properly
-        for (let i = 0; i < newHistory.length; i++) {
-            const historyEntry = newHistory[i];
-            if (historyEntry.result.matched) {
-                // Add any labels from this rule
-                const rule = historyEntry.rule;
-                if (rule.RuleLabels) {
-                    rule.RuleLabels.forEach(label => {
-                        if (label && label.Name) {
-                            newLabels.add(label.Name);
-                        }
-                    });
-                }
-
-                // Update the request state
-                newRequestState = updateRequestState(newRequestState, historyEntry.result, rule);
-            }
-        }
-
-        setTriggeredLabels(newLabels);
-        setCurrentRequestState(newRequestState);
-
-        showMessage('Moved back to previous rule', 'info');
+        const prevIndex = currentRuleIndex - 1;
+        setCurrentRuleIndex(prevIndex);
+        setCurrentRequestState(null); // Optionally reset state or restore from history
     };
 
     // Helper function to get a specific query parameter value
@@ -1557,79 +1496,67 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
     };
 
     // Render a summary of the match details
-    const renderMatchSummary = (details) => {
+    const renderMatchSummary = (details, rule) => {
         if (!details) return 'No details available';
-
+        // Show rule name/ID/type if available
+        let header = '';
+        if (rule) {
+            header = `[${rule._ruleset || rule.type || ''}] Rule: ${rule.Name || rule.name || rule.id || 'Unknown'}\n`;
+        }
         if (details.type) {
             switch (details.type) {
                 case 'ByteMatch':
-                    return `${details.field} contains "${details.matchValue}"`;
-
+                    return `${header}${details.field} contains "${details.matchValue}"`;
                 case 'SqliMatch':
-                    return `SQL injection pattern detected in ${details.field}`;
-
+                    return `${header}SQL injection pattern detected in ${details.field}`;
                 case 'XssMatch':
-                    return `XSS pattern detected in ${details.field}`;
-
+                    return `${header}XSS pattern detected in ${details.field}`;
                 case 'GeoMatch':
-                    return `IP from ${details.matchedCountry}`;
-
+                    return `${header}IP from ${details.matchedCountry}`;
                 case 'IPSetReference':
-                    return `IP matches set (${details.matchedIp})`;
-
+                    return `${header}IP matches set (${details.matchedIp})`;
                 case 'RegexPatternSetReference':
-                    return `Regex pattern matched in ${details.field}`;
-
+                    return `${header}Regex pattern matched in ${details.field}`;
                 case 'SizeConstraint':
-                    return `${details.field} size ${details.actualSize} ${details.comparisonOperator} ${details.constraintSize}`;
-
+                    return `${header}${details.field} size ${details.actualSize} ${details.comparisonOperator} ${details.constraintSize}`;
                 case 'RateBased':
-                    return `Rate-based limit: ${details.limit} requests per ${details.evaluationWindow}s (Request #${details.requestNumber})`;
-
+                    return `${header}Rate-based limit: ${details.limit} requests per ${details.evaluationWindow}s (Request #${details.requestNumber})`;
                 case 'ManagedRuleGroup':
-                    return `${details.vendorName}:${details.name} managed rule group`;
-
+                    return `${header}${details.vendorName}:${details.name} managed rule group`;
                 case 'LabelMatch':
-                    return `Label match: ${details.labelKey}`;
-
+                    return `${header}Label match: ${details.labelKey}`;
                 case 'And':
-                    return 'AND condition: All sub-conditions matched';
-
+                    return `${header}AND condition: All sub-conditions matched\n${details.subResults ? details.subResults.map((sub, i) => `  - ${renderMatchSummary(sub, rule)}`).join('\n') : ''}`;
                 case 'Or':
-                    return 'OR condition: At least one sub-condition matched';
-
+                    return `${header}OR condition: At least one sub-condition matched\n${details.subResults ? details.subResults.map((sub, i) => `  - ${renderMatchSummary(sub, rule)}`).join('\n') : ''}`;
                 case 'Not':
-                    return 'NOT condition: Inner condition did not match';
-
+                    return `${header}NOT condition: Inner condition did not match\n${details.subResults ? details.subResults.map((sub, i) => `  - ${renderMatchSummary(sub, rule)}`).join('\n') : ''}`;
                 default:
                     if (details.field) {
-                        return `${details.field} match`;
+                        return `${header}${details.field} match`;
                     }
-                    return 'Rule statement matched';
+                    return `${header}Rule statement matched`;
             }
         }
-
         // Legacy format (for backward compatibility)
         if (details.field) {
             if (details.constraint && details.matchValue) {
-                return `${details.field} ${details.constraint} "${details.matchValue}"`;
+                return `${header}${details.field} ${details.constraint} "${details.matchValue}"`;
             }
             if (details.regexPattern) {
-                return `${details.field} matches regex: ${details.regexPattern}`;
+                return `${header}${details.field} matches regex: ${details.regexPattern}`;
             }
-            return `${details.field} match`;
+            return `${header}${details.field} match`;
         }
-
         if (details.operator) {
             if (details.operator === 'AND') {
-                return 'AND condition: All sub-conditions matched';
+                return `${header}AND condition: All sub-conditions matched`;
             }
             if (details.operator === 'OR') {
-                return 'OR condition: At least one sub-condition matched';
+                return `${header}OR condition: At least one sub-condition matched`;
             }
         }
-
-        return 'Rule matched with unknown details';
+        return `${header}Rule matched with unknown details`;
     };
 
     // Render detailed information about rule actions
@@ -2094,6 +2021,231 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
         );
     };
 
+    // Add a helper to explain why a rule matched
+    function explainMatch(rule, result, request) {
+        if (result.details?.type === 'ManagedRuleGroup') {
+            return result.details.note;
+        }
+        if (result.details?.type === 'ByteMatch') {
+            return `Matched on ${result.details.field} with value "${result.details.matchValue}"`;
+        }
+        if (result.details?.type === 'LabelMatch') {
+            return `Matched label: ${result.details.labelKey}`;
+        }
+        if (result.details?.type === 'RateBased') {
+            return `Rate limit check: ${result.details.requestNumber} requests (limit: ${result.details.limit})`;
+        }
+        if (result.details?.type === 'ALBMatch') {
+            return 'Matched all ALB rule conditions.';
+        }
+        // Add more explanations as needed
+        return 'Matched rule conditions.';
+    }
+
+    // Helper: summarize state changes for step-by-step mode
+    function summarizeStepChanges(rule, result, request) {
+        const changes = [];
+        if (result.labelsGenerated && result.labelsGenerated.length > 0) {
+            changes.push(`Labels added: ${result.labelsGenerated.join(', ')}`);
+        }
+        if (result.actions && result.actions.length > 0) {
+            const actionList = result.actions.map(a => a.action || a.type).join(', ');
+            changes.push(`Actions: ${actionList}`);
+        }
+        // Check for headers added
+        if (result.actions) {
+            const headerActions = result.actions.filter(a => a.type === 'headers');
+            if (headerActions.length > 0) {
+                const headerList = headerActions.map(h => h.headers.map(hh => `${hh.name}: ${hh.value}`).join(', ')).join(', ');
+                changes.push(`Headers added: ${headerList}`);
+            }
+        }
+        return changes.length > 0 ? changes : ['No state changes.'];
+    }
+
+    function parseRawHttpRequest(raw) {
+        // Very basic HTTP request parser
+        const lines = raw.split(/\r?\n/);
+        const [method, path] = lines[0].split(' ');
+        const headers = {};
+        let i = 1;
+        for (; i < lines.length; i++) {
+            const line = lines[i];
+            if (!line.trim()) break;
+            const [k, ...v] = line.split(':');
+            if (k && v) headers[k.trim().toLowerCase()] = [{ value: v.join(':').trim() }];
+        }
+        let body = lines.slice(i + 1).join('\n');
+        // Parse query string
+        let queryParams = '';
+        let uri = path;
+        if (path && path.includes('?')) {
+            [uri, queryParams] = path.split('?');
+        }
+        return { method, path: uri, queryParams, headers, body };
+    }
+
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
+    const [importText, setImportText] = useState('');
+
+    const [rateDialogOpen, setRateDialogOpen] = useState(false);
+    const [rateSimCount, setRateSimCount] = useState(10);
+    const [rateSimResults, setRateSimResults] = useState([]);
+
+    function simulateRateLimitRequests(baseConfig, count) {
+        const results = [];
+        for (let i = 1; i <= count; i++) {
+            const req = { ...baseConfig, requestNumber: i };
+            const waf = evaluateRulesAgainstRequest(req, effectiveRules);
+            const alb = evaluateRulesAgainstRequest(req, effectiveAlbRules);
+            results.push({ n: i, waf, alb });
+        }
+        return results;
+    }
+
+    // Helper: summarize label flow for a rule
+    function summarizeLabelFlow(rule, result, allRules) {
+        if (!result.labelsGenerated || result.labelsGenerated.length === 0) return null;
+        // Find rules that depend on these labels
+        const dependents = [];
+        for (const r of allRules) {
+            if (r.Statement && r.Statement.LabelMatchStatement) {
+                const key = r.Statement.LabelMatchStatement.Key;
+                if (result.labelsGenerated.includes(key)) {
+                    dependents.push(r.Name);
+                }
+            }
+        }
+        if (dependents.length === 0) return `Labels added: ${result.labelsGenerated.join(', ')}`;
+        return `Labels added: ${result.labelsGenerated.join(', ')} → Used by: ${dependents.join(', ')}`;
+    }
+
+    // Helper: get main action for a rule
+    function getMainAction(rule, result) {
+        if (rule.Action) {
+            const type = Object.keys(rule.Action)[0];
+            return type;
+        }
+        if (result.actions && result.actions.length > 0) {
+            return result.actions[0].action || result.actions[0].type;
+        }
+        if (rule.Actions && rule.Actions.length > 0) {
+            return rule.Actions[0].Type || rule.Actions[0].type;
+        }
+        return 'Count';
+    }
+
+    // Helper: render action badge/icon
+    function renderActionBadge(action) {
+        switch ((action || '').toLowerCase()) {
+            case 'block':
+                return <span style={{ color: '#d32f2f', fontWeight: 700, marginRight: 8 }}><BlockIcon fontSize="small" /> BLOCK</span>;
+            case 'allow':
+                return <span style={{ color: '#388e3c', fontWeight: 700, marginRight: 8 }}><CheckCircleIcon fontSize="small" /> ALLOW</span>;
+            case 'count':
+                return <span style={{ color: '#1976d2', fontWeight: 700, marginRight: 8 }}><RemoveRedEyeIcon fontSize="small" /> COUNT</span>;
+            case 'redirect':
+                return <span style={{ color: '#ff9800', fontWeight: 700, marginRight: 8 }}><RedoIcon fontSize="small" /> REDIRECT</span>;
+            case 'captcha':
+                return <span style={{ color: '#fbc02d', fontWeight: 700, marginRight: 8 }}>CAPTCHA</span>;
+            case 'challenge':
+                return <span style={{ color: '#fbc02d', fontWeight: 700, marginRight: 8 }}>CHALLENGE</span>;
+            default:
+                return <span style={{ color: '#888', fontWeight: 700, marginRight: 8 }}>{(action || '').toUpperCase()}</span>;
+        }
+    }
+
+    // --- ALB Rule Matcher ---
+    function matchAlbRule(request, rule) {
+        if (!rule || !rule.Conditions) return false;
+        let allMatch = true;
+        let unsupportedConditions = [];
+        const conditionResults = rule.Conditions.map(condition => {
+            switch (condition.Field) {
+                case 'path-pattern': {
+                    if (!condition.Values || !condition.Values.length) return { matched: true, type: 'path-pattern' };
+                    const matched = condition.Values.some(pattern => {
+                        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+                        return regex.test(request.uri);
+                    });
+                    return { matched, type: 'path-pattern', values: condition.Values };
+                }
+                case 'host-header': {
+                    if (!condition.Values || !condition.Values.length) return { matched: true, type: 'host-header' };
+                    // Robust header parsing (case-insensitive)
+                    let host = '';
+                    if (request.headers) {
+                        if (Array.isArray(request.headers.host)) {
+                            host = request.headers.host[0]?.value || request.headers.host[0] || '';
+                        } else if (typeof request.headers.host === 'string') {
+                            host = request.headers.host;
+                        } else if (typeof request.headers === 'object') {
+                            // Try to find host header case-insensitively
+                            for (const key in request.headers) {
+                                if (key.toLowerCase() === 'host') {
+                                    host = Array.isArray(request.headers[key]) ? request.headers[key][0]?.value || request.headers[key][0] : request.headers[key];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    host = (host || '').toLowerCase();
+                    const matched = condition.Values.some(val => host === val.toLowerCase());
+                    return { matched, type: 'host-header', values: condition.Values };
+                }
+                case 'http-header': {
+                    if (!condition.HttpHeaderConfig) return { matched: true, type: 'http-header' };
+                    const headerName = condition.HttpHeaderConfig.HttpHeaderName.toLowerCase();
+                    let headerValue = '';
+                    if (request.headers) {
+                        if (Array.isArray(request.headers[headerName])) {
+                            headerValue = request.headers[headerName][0]?.value || request.headers[headerName][0] || '';
+                        } else if (typeof request.headers[headerName] === 'string') {
+                            headerValue = request.headers[headerName];
+                        } else if (typeof request.headers === 'object') {
+                            for (const key in request.headers) {
+                                if (key.toLowerCase() === headerName) {
+                                    headerValue = Array.isArray(request.headers[key]) ? request.headers[key][0]?.value || request.headers[key][0] : request.headers[key];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    headerValue = (headerValue || '').toLowerCase();
+                    const matched = condition.HttpHeaderConfig.Values.some(val => headerValue === val.toLowerCase());
+                    return { matched, type: 'http-header', values: condition.HttpHeaderConfig.Values, headerName };
+                }
+                case 'http-request-method': {
+                    if (!condition.Values || !condition.Values.length) return { matched: true, type: 'http-request-method' };
+                    const matched = condition.Values.includes(request.method);
+                    return { matched, type: 'http-request-method', values: condition.Values };
+                }
+                case 'query-string': {
+                    if (!condition.Values || !condition.Values.length) return { matched: true, type: 'query-string' };
+                    // Robust query string parsing
+                    const queryString = request.queryString || '';
+                    const matched = condition.Values.some(val => queryString === val);
+                    return { matched, type: 'query-string', values: condition.Values };
+                }
+                case 'source-ip': {
+                    if (!condition.Values || !condition.Values.length) return { matched: true, type: 'source-ip' };
+                    const matched = condition.Values.includes(request.sourceIp);
+                    return { matched, type: 'source-ip', values: condition.Values };
+                }
+                default:
+                    unsupportedConditions.push(condition.Field);
+                    return { matched: true, type: 'unsupported', field: condition.Field };
+            }
+        });
+        allMatch = conditionResults.every(r => r.matched);
+        // Attach unsupported conditions for UI feedback
+        if (unsupportedConditions.length > 0) {
+            allMatch = false; // Optionally, treat as non-match
+        }
+        return { matched: allMatch, conditionResults, unsupportedConditions };
+    }
+    // --- ALB Rule Matcher ---
+
     // Main UI render
     return (
         <Box sx={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden' }}>
@@ -2159,6 +2311,120 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
                     },
                 },
             }}>
+                {/* Mode Selector */}
+                <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Tooltip title="Select which ruleset(s) to test against" arrow>
+                        <Typography variant="subtitle1">Rule Set:</Typography>
+                    </Tooltip>
+                    <FormControl size="small">
+                        <Select value={mode} onChange={e => setMode(e.target.value)} aria-label="Rule Set Selector">
+                            <MenuItem value="waf">WAF</MenuItem>
+                            <MenuItem value="alb">ALB</MenuItem>
+                            <MenuItem value="both">Both</MenuItem>
+                        </Select>
+                    </FormControl>
+                    <Tooltip title="Paste or upload a real HTTP request to auto-fill fields" arrow>
+                        <Button variant="outlined" onClick={() => setImportDialogOpen(true)} sx={{ ml: 2 }} aria-label="Import HTTP Request">
+                            Import HTTP Request
+                        </Button>
+                    </Tooltip>
+                    <Tooltip title="(Coming soon) Import real traffic using your API key" arrow>
+                        <span>
+                            <Button variant="outlined" disabled sx={{ ml: 1 }} aria-label="Import from API">
+                                Import from API (stub)
+                            </Button>
+                        </span>
+                    </Tooltip>
+                    <Tooltip title="Simulate a sequence of requests to test rate-based rules" arrow>
+                        <Button variant="outlined" onClick={() => setRateDialogOpen(true)} sx={{ ml: 2 }} aria-label="Simulate Rate Limit">
+                            Simulate Rate Limit
+                        </Button>
+                    </Tooltip>
+                    <Tooltip title="AWS WAF/ALB Rule Schema Reference" arrow>
+                        <Link href="https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statements.html" target="_blank" rel="noopener" sx={{ ml: 2, fontWeight: 700 }}>
+                            AWS Rule Docs ↗
+                        </Link>
+                    </Tooltip>
+                </Box>
+                {/* Import dialog */}
+                <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)}>
+                    <DialogTitle>Import HTTP Request</DialogTitle>
+                    <DialogContent>
+                        <TextField
+                            label="Paste raw HTTP request here"
+                            multiline
+                            minRows={6}
+                            value={importText}
+                            onChange={e => setImportText(e.target.value)}
+                            fullWidth
+                            sx={{ mt: 1, minWidth: 400 }}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setImportDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => {
+                            const parsed = parseRawHttpRequest(importText);
+                            setRequestConfig(rc => ({ ...rc, ...parsed }));
+                            setImportDialogOpen(false);
+                        }} variant="contained">Import</Button>
+                    </DialogActions>
+                </Dialog>
+                {/* Rate limit simulation dialog */}
+                <Dialog open={rateDialogOpen} onClose={() => setRateDialogOpen(false)}>
+                    <DialogTitle>Simulate Rate Limiting</DialogTitle>
+                    <DialogContent>
+                        <TextField
+                            label="Number of Requests"
+                            type="number"
+                            value={rateSimCount}
+                            onChange={e => setRateSimCount(Number(e.target.value))}
+                            InputProps={{
+                                endAdornment: <InputAdornment position="end">requests</InputAdornment>,
+                                inputProps: { min: 1, max: 1000 }
+                            }}
+                            sx={{ mt: 1, minWidth: 200 }}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setRateDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => {
+                            setRateSimResults(simulateRateLimitRequests(requestConfig, rateSimCount));
+                            setRateDialogOpen(false);
+                        }} variant="contained">Simulate</Button>
+                    </DialogActions>
+                </Dialog>
+                {/* Rate limit simulation results table */}
+                {rateSimResults.length > 0 && (
+                    <Paper sx={{ mt: 3, p: 2, background: '#f8fafd', border: '1px solid #1976d2' }}>
+                        <Typography variant="subtitle1" sx={{ color: '#1976d2', mb: 1 }}>Rate Limiting Simulation Results</Typography>
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>Request #</TableCell>
+                                    <TableCell>WAF Rate-Based Matches</TableCell>
+                                    <TableCell>ALB Rate-Based Matches</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {rateSimResults.map(row => (
+                                    <TableRow key={row.n}>
+                                        <TableCell>{row.n}</TableCell>
+                                        <TableCell>
+                                            {row.waf.matchedRules.filter(m => m.result.details?.type === 'RateBased').length > 0
+                                                ? <span style={{ color: '#d32f2f', fontWeight: 700 }}>Triggered</span>
+                                                : <span style={{ color: '#888' }}>-</span>}
+                                        </TableCell>
+                                        <TableCell>
+                                            {row.alb.matchedRules.filter(m => m.result.details?.type === 'RateBased').length > 0
+                                                ? <span style={{ color: '#388e3c', fontWeight: 700 }}>Triggered</span>
+                                                : <span style={{ color: '#888' }}>-</span>}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </Paper>
+                )}
                 {/* Request Configuration Form */}
                 <Paper variant="outlined" sx={{ 
                     p: 3, 
@@ -2310,7 +2576,7 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
                                 <Typography variant="subtitle2" gutterBottom sx={{ color: getColor('barText') }}>
                                     Headers
                                 </Typography>
-                                {requestConfig.headers.map((header, index) => (
+                                {(Array.isArray(requestConfig.headers) ? requestConfig.headers : []).map((header, index) => (
                                     <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }}>
                                         <TextField
                                             label="Name"
@@ -2490,27 +2756,105 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
                         <Typography variant="h6" gutterBottom sx={{ color: getColor('barText') }}>
                             Test Results
                         </Typography>
-                        <Box>
-                            {testResults.matchedRules.map((match, index) => (
-                                <Accordion key={index}>
-                                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                                        <Typography sx={{ color: getColor('barText') }}>
-                                            Rule: {match.rule.Name} (Priority: {match.rule.Priority})
-                                        </Typography>
-                                    </AccordionSummary>
-                                    <AccordionDetails>
-                                        {renderMatchSummary(match.result)}
-                                        {renderRuleActions(match.rule.Action)}
-                                    </AccordionDetails>
-                                </Accordion>
-                            ))}
-                        </Box>
+                        {mode === 'waf' || mode === 'both' ? (
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" sx={{ color: '#d32f2f', mb: 1 }}>WAF Rule Matches</Typography>
+                                {testResults.waf.matchedRules.length === 0 ? (
+                                    <Typography variant="body2">No WAF rules matched.</Typography>
+                                ) : (
+                                    testResults.waf.matchedRules.map((match, index) => (
+                                        <Accordion key={index} defaultExpanded={index === 0} sx={index === 0 ? { border: '2px solid #1976d2', boxShadow: '0 0 8px #1976d2' } : {}}>
+                                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                                <Typography sx={{ color: getColor('barText'), fontWeight: index === 0 ? 700 : 400 }}>
+                                                    {index === 0 && <span style={{ color: '#1976d2', fontWeight: 700, marginRight: 8 }}>[WINNER]</span>}
+                                                    Rule: {match.rule.Name} (Priority: {match.rule.Priority})
+                                                </Typography>
+                                            </AccordionSummary>
+                                            <AccordionDetails>
+                                                {/* Action badge */}
+                                                {renderActionBadge(getMainAction(match.rule, match.result)) && (
+                                                    <Tooltip title="Main action taken by this rule" arrow>
+                                                        <span>{renderActionBadge(getMainAction(match.rule, match.result))}</span>
+                                                    </Tooltip>
+                                                )}
+                                                <Tooltip title="Explanation of why this rule matched" arrow>
+                                                    <Typography variant="body2" sx={{ mb: 1, color: '#1976d2' }}>{explainMatch(match.rule, match.result, testResults.request)}</Typography>
+                                                </Tooltip>
+                                                {/* Label flow summary */}
+                                                {summarizeLabelFlow(match.rule, match.result, testResults.waf.matchedRules.map(m => m.rule)) && (
+                                                    <Typography variant="body2" sx={{ mb: 1, color: '#1976d2' }}>{summarizeLabelFlow(match.rule, match.result, testResults.waf.matchedRules.map(m => m.rule))}</Typography>
+                                                )}
+                                                {renderMatchSummary(match.result, match.rule)}
+                                                {renderRuleActions(match.rule.Action)}
+                                                {match.unsupportedConditions && match.unsupportedConditions.length > 0 && (
+                                                    <Alert severity="warning" sx={{ mb: 1 }}>
+                                                        Unsupported ALB condition types: {match.unsupportedConditions.join(', ')}
+                                                    </Alert>
+                                                )}
+                                            </AccordionDetails>
+                                        </Accordion>
+                                    ))
+                                )}
+                            </Box>
+                        ) : null}
+                        {mode === 'alb' || mode === 'both' ? (
+                            <Box>
+                                <Typography variant="subtitle2" sx={{ color: '#388e3c', mb: 1 }}>ALB Rule Matches</Typography>
+                                {testResults.alb.matchedRules.length === 0 ? (
+                                    <Typography variant="body2">No ALB rules matched.</Typography>
+                                ) : (
+                                    testResults.alb.matchedRules.map((match, index) => (
+                                        <Accordion key={index} defaultExpanded={index === 0} sx={index === 0 ? { border: '2px solid #388e3c', boxShadow: '0 0 8px #388e3c' } : {}}>
+                                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                                <Typography sx={{ color: getColor('barText'), fontWeight: index === 0 ? 700 : 400 }}>
+                                                    {index === 0 && <span style={{ color: '#388e3c', fontWeight: 700, marginRight: 8 }}>[WINNER]</span>}
+                                                    Rule: {match.rule.Name} (Priority: {match.rule.Priority})
+                                                </Typography>
+                                            </AccordionSummary>
+                                            <AccordionDetails>
+                                                {/* Action badge */}
+                                                {renderActionBadge(getMainAction(match.rule, match.result))}
+                                                <Typography variant="body2" sx={{ mb: 1, color: '#388e3c' }}>{explainMatch(match.rule, match.result, testResults.request)}</Typography>
+                                                {/* Label flow summary */}
+                                                {summarizeLabelFlow(match.rule, match.result, testResults.alb.matchedRules.map(m => m.rule)) && (
+                                                    <Typography variant="body2" sx={{ mb: 1, color: '#388e3c' }}>{summarizeLabelFlow(match.rule, match.result, testResults.alb.matchedRules.map(m => m.rule))}</Typography>
+                                                )}
+                                                {renderMatchSummary(match.result, match.rule)}
+                                                {renderRuleActions(match.rule.Action)}
+                                                {match.unsupportedConditions && match.unsupportedConditions.length > 0 && (
+                                                    <Alert severity="warning" sx={{ mb: 1 }}>
+                                                        Unsupported ALB condition types: {match.unsupportedConditions.join(', ')}
+                                                    </Alert>
+                                                )}
+                                            </AccordionDetails>
+                                        </Accordion>
+                                    ))
+                                )}
+                            </Box>
+                        ) : null}
                     </Paper>
                 )}
 
                 {/* Step Mode UI */}
                 {stepMode && currentRequestState && (
                     <>
+                        <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2">
+                                {combinedRules[currentRuleIndex]?._ruleset} Rule {currentRuleIndex + 1} of {combinedRules.length}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#888' }}>
+                                Rule Name: {combinedRules[currentRuleIndex]?.Name}
+                            </Typography>
+                            {/* State changes summary */}
+                            {ruleHistory[currentRuleIndex] && (
+                                <Paper sx={{ p: 2, mt: 1, mb: 1, background: '#f5faff', borderLeft: '4px solid #1976d2' }}>
+                                    <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 700, mb: 1 }}>State Changes:</Typography>
+                                    {summarizeStepChanges(combinedRules[currentRuleIndex], ruleHistory[currentRuleIndex].result, currentRequestState).map((line, idx) => (
+                                        <Typography key={idx} variant="body2" sx={{ color: '#1976d2' }}>{line}</Typography>
+                                    ))}
+                                </Paper>
+                            )}
+                        </Box>
                         {renderCurrentRequest(currentRequestState)}
                         <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                             <Button
@@ -2531,7 +2875,7 @@ const RequestDebugger = ({ rules = [], albRules = [] }) => {
                             </Button>
                             <Button
                                 onClick={stepToNextRule}
-                                disabled={currentRuleIndex >= effectiveRules.length - 1}
+                                disabled={currentRuleIndex >= combinedRules.length - 1}
                                 endIcon={<NavigateNextIcon />}
                                 sx={{
                                     borderColor: getColor('border'),
